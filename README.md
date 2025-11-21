@@ -50,15 +50,7 @@ npm run sass:watch
 └── package.json        # Dependencies and scripts
 ```
 
-## Customization
-
-- Edit `styles/main.scss` to change colors, fonts, and styling
-- Update project information in `projects.html`
-- Modify contact information in `contact.html`
-- Adjust company description in `index.html`
-
 ## Notes
 
 - The contact form currently shows an alert on submission. To make it functional, you'll need to add a backend service or use a form service like Formspree.
-- Project cards are placeholders - update them with your actual projects.
 
