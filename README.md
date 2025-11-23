@@ -1,20 +1,21 @@
 # R&L Labs, LLC Website
 
-A modern, responsive website for R&L Labs, LLC built with HTML, CSS (SASS), and JavaScript.
+A modern, responsive website for R&L Labs, LLC built with Astro, Vue, and SCSS.
 
 ## Features
 
-- **Home Page**: Introduction to the company with hero section, about section, and features
-- **Projects Page**: Showcase of coding projects
-- **Contact Page**: Contact form and company information
+- **Astro Framework**: Fast, modern static site generator
+- **Vue Components**: Interactive components using Vue 3
+- **SCSS Styling**: Professional monochrome design with warm accents
+- **Contact Form**: EmailJS integration for form submissions
+- **Environment Variables**: Secure configuration using Astro's built-in env support
 - **Responsive Design**: Mobile-friendly navigation and layout
-- **Modern UI**: Clean, professional design with smooth animations
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js and npm installed on your system
+- Node.js 18+ and npm
 
 ### Installation
 
@@ -23,34 +24,88 @@ A modern, responsive website for R&L Labs, LLC built with HTML, CSS (SASS), and 
 npm install
 ```
 
-2. Compile SASS to CSS (one-time):
+2. Set up environment variables:
 ```bash
-npm run sass
+cp .env.example .env
 ```
 
-Or watch for changes:
-```bash
-npm run sass:watch
+3. Edit `.env` and add your EmailJS credentials:
+```
+PUBLIC_EMAILJS_PUBLIC_KEY=your_public_key
+PUBLIC_EMAILJS_SERVICE_ID=your_service_id
+PUBLIC_EMAILJS_TEMPLATE_ID=your_template_id
+PUBLIC_EMAILJS_TO_EMAIL=support@rl-labs.org
 ```
 
-3. Open `index.html` in your browser or use a local server.
+### Development
+
+Start the development server:
+```bash
+npm run dev
+```
+
+The site will be available at `http://localhost:4321`
+
+### Build
+
+Build for production:
+```bash
+npm run build
+```
+
+Preview the production build:
+```bash
+npm run preview
+```
 
 ## Project Structure
 
 ```
 .
-├── index.html          # Home page
-├── contact.html        # Contact page
-├── projects.html       # Projects page
-├── styles/
-│   ├── main.scss       # SASS source file
-│   └── main.css        # Compiled CSS
-├── js/
-│   └── main.js         # JavaScript for interactivity
-└── package.json        # Dependencies and scripts
+├── src/
+│   ├── components/      # Vue components
+│   │   ├── Navbar.vue
+│   │   ├── Footer.vue
+│   │   └── ContactForm.vue
+│   ├── layouts/         # Astro layouts
+│   │   └── Layout.astro
+│   ├── pages/           # Astro pages (routes)
+│   │   ├── index.astro
+│   │   ├── projects.astro
+│   │   └── contact.astro
+│   └── styles/          # SCSS styles
+│       └── main.scss
+├── public/              # Static assets
+├── astro.config.mjs     # Astro configuration
+└── package.json         # Dependencies and scripts
 ```
+
+## Environment Variables
+
+Astro uses the `PUBLIC_` prefix for environment variables that should be exposed to the client. These are available via `import.meta.env.PUBLIC_*`.
+
+Required variables:
+- `PUBLIC_EMAILJS_PUBLIC_KEY` - Your EmailJS public key
+- `PUBLIC_EMAILJS_SERVICE_ID` - Your EmailJS service ID
+- `PUBLIC_EMAILJS_TEMPLATE_ID` - Your EmailJS template ID
+- `PUBLIC_EMAILJS_TO_EMAIL` - Email address to receive form submissions (optional)
+
+## Deployment
+
+### Netlify
+
+1. Connect your repository to Netlify
+2. Set environment variables in Netlify dashboard:
+   - Go to Site settings → Environment variables
+   - Add all `PUBLIC_EMAILJS_*` variables
+3. Deploy! Netlify will automatically detect Astro and build your site
+
+The build command is already configured in `package.json`.
 
 ## Notes
 
-- The contact form currently shows an alert on submission. To make it functional, you'll need to add a backend service or use a form service like Formspree.
-
+- Vue components are used for interactive elements (Navbar, Footer, ContactForm)
+- Astro pages handle routing automatically based on file structure
+- SCSS is compiled automatically during build
+- Environment variables with `PUBLIC_` prefix are exposed to the browser
+- The contact form uses EmailJS for sending emails
