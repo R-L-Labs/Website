@@ -17,26 +17,88 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Contact Form Handling
+    // Contact Form Handling with EmailJS
     const contactForm = document.getElementById('contactForm');
+    const formStatus = document.getElementById('form-status');
+    
+    // EmailJS Configuration - Get from window.emailjsConfig (set in js/config.js)
+    const EMAILJS_PUBLIC_KEY = window.emailjsConfig?.PUBLIC_KEY || 'YOUR_PUBLIC_KEY';
+    const EMAILJS_SERVICE_ID = window.emailjsConfig?.SERVICE_ID || 'YOUR_SERVICE_ID';
+    const EMAILJS_TEMPLATE_ID = window.emailjsConfig?.TEMPLATE_ID || 'YOUR_TEMPLATE_ID';
+    
+    // Initialize EmailJS
+    if (typeof emailjs !== 'undefined') {
+        emailjs.init(EMAILJS_PUBLIC_KEY);
+    }
+    
     if (contactForm) {
         contactForm.addEventListener('submit', function(e) {
             e.preventDefault();
             
+            // Show loading state
+            const submitButton = contactForm.querySelector('button[type="submit"]');
+            const originalButtonText = submitButton.textContent;
+            submitButton.disabled = true;
+            submitButton.textContent = 'Sending...';
+            
+            if (formStatus) {
+                formStatus.textContent = '';
+                formStatus.className = 'form-status';
+            }
+            
             // Get form values
             const formData = {
-                name: document.getElementById('name').value,
-                email: document.getElementById('email').value,
+                from_name: document.getElementById('name').value,
+                from_email: document.getElementById('email').value,
                 subject: document.getElementById('subject').value,
                 message: document.getElementById('message').value
             };
             
-            // Here you would typically send this to a server
-            // For now, we'll just show an alert
-            alert('Thank you for your message! We will get back to you soon.');
+            // Check if EmailJS is loaded and configured
+            if (typeof emailjs === 'undefined') {
+                if (formStatus) {
+                    formStatus.textContent = 'EmailJS library not loaded. Please check your configuration.';
+                    formStatus.className = 'form-status error';
+                }
+                submitButton.disabled = false;
+                submitButton.textContent = originalButtonText;
+                return;
+            }
             
-            // Reset form
-            contactForm.reset();
+            if (EMAILJS_PUBLIC_KEY === 'YOUR_PUBLIC_KEY' || 
+                EMAILJS_SERVICE_ID === 'YOUR_SERVICE_ID' || 
+                EMAILJS_TEMPLATE_ID === 'YOUR_TEMPLATE_ID') {
+                if (formStatus) {
+                    formStatus.textContent = 'Please configure EmailJS with your credentials in js/main.js';
+                    formStatus.className = 'form-status error';
+                }
+                submitButton.disabled = false;
+                submitButton.textContent = originalButtonText;
+                return;
+            }
+            
+            // Send email using EmailJS
+            emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, formData)
+                .then(function(response) {
+                    if (formStatus) {
+                        formStatus.textContent = 'Thank you! Your message has been sent successfully.';
+                        formStatus.className = 'form-status success';
+                    }
+                    contactForm.reset();
+                })
+                .catch(function(error) {
+                    if (formStatus) {
+                        formStatus.textContent = 'There was an error sending your message. Please try again or contact us directly at support@rl-labs.org';
+                        formStatus.className = 'form-status error';
+                    } else {
+                        alert('Error: There was an error sending your message. Please try again.');
+                    }
+                    console.error('EmailJS Error:', error);
+                })
+                .finally(function() {
+                    submitButton.disabled = false;
+                    submitButton.textContent = originalButtonText;
+                });
         });
     }
     
