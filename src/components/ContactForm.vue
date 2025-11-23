@@ -71,7 +71,7 @@ const emailjsConfig = {
   PUBLIC_KEY: import.meta.env.PUBLIC_EMAILJS_PUBLIC_KEY || '',
   SERVICE_ID: import.meta.env.PUBLIC_EMAILJS_SERVICE_ID || '',
   TEMPLATE_ID: import.meta.env.PUBLIC_EMAILJS_TEMPLATE_ID || '',
-  TO_EMAIL: import.meta.env.PUBLIC_EMAILJS_TO_EMAIL || 'support@rl-labs.org'
+  TO_EMAIL: import.meta.env.PUBLIC_EMAILJS_TO_EMAIL || 'rllabsadmin@rl-labs.org'
 };
 
 onMounted(async () => {
@@ -87,7 +87,7 @@ onMounted(async () => {
 
 const handleSubmit = async () => {
   if (!emailjsConfig.PUBLIC_KEY || !emailjsConfig.SERVICE_ID || !emailjsConfig.TEMPLATE_ID) {
-    statusMessage.value = 'EmailJS is not configured. Please set environment variables.';
+    statusMessage.value = 'EmailJS is not configured. Please set variables.';
     statusType.value = 'error';
     return;
   }
@@ -119,7 +119,7 @@ const handleSubmit = async () => {
     formData.value = { name: '', email: '', subject: '', message: '' };
   } catch (error) {
     console.error('EmailJS Error:', error);
-    statusMessage.value = 'There was an error sending your message. Please try again or contact us directly at support@rl-labs.org';
+    statusMessage.value = 'There was an error sending your message. Please try again or contact us directly at rllabsadmin@rl-labs.org';
     statusType.value = 'error';
   } finally {
     isSubmitting.value = false;
