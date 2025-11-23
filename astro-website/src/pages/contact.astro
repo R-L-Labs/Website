@@ -1,0 +1,49 @@
+---
+import Layout from '../layouts/Layout.astro';
+import ContactForm from '../components/ContactForm.vue';
+---
+
+<Layout title="R&L Labs, LLC - Contact" currentPath="/contact">
+  <section class="page-header">
+    <div class="container">
+      <h1>Get In Touch</h1>
+      <p>We'd love to hear from you. Reach out to us for inquiries, collaborations, or just to say hello.</p>
+    </div>
+  </section>
+
+  <section class="contact">
+    <div class="container">
+      <div class="contact-wrapper">
+        <div class="contact-info">
+          <h2>Contact Information</h2>
+          <div class="info-item">
+            <div class="info-icon">📧</div>
+            <div>
+              <h3>Email</h3>
+              <p>support@rl-labs.org</p>
+            </div>
+          </div>
+          <div class="info-item">
+            <div class="info-icon">💼</div>
+            <div>
+              <h3>Business</h3>
+              <p>R&L Labs, LLC</p>
+            </div>
+          </div>
+          <div class="info-item">
+            <div class="info-icon">🌐</div>
+            <div>
+              <h3>Location</h3>
+              <p>United States</p>
+            </div>
+          </div>
+        </div>
+        <div class="contact-form-wrapper">
+          <h2>Send Us a Message</h2>
+          <ContactForm client:load />
+        </div>
+      </div>
+    </div>
+  </section>
+</Layout>
+
