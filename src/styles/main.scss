@@ -571,6 +571,61 @@ footer {
     }
 }
 
+// Confirmation Page
+.confirmation-page {
+    min-height: calc(100vh - 200px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem 0;
+
+    .confirmation-card {
+        background-color: $bg-card;
+        border: 1px solid $border-color;
+        border-radius: 1rem;
+        padding: 3rem 4rem;
+        text-align: center;
+        box-shadow: $shadow-lg;
+        max-width: 500px;
+        width: 100%;
+
+        .confirmation-icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(34, 197, 94, 0.1) 100%);
+            border: 2px solid rgba(34, 197, 94, 0.4);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 2rem;
+            font-size: 2.5rem;
+            color: #4ade80;
+        }
+
+        h1 {
+            font-size: clamp(1.75rem, 4vw, 2.25rem);
+            color: $primary-color;
+            text-shadow: $accent-glow-subtle;
+            margin-bottom: 1.5rem;
+            font-weight: 800;
+        }
+
+        .confirmation-message {
+            font-size: 1.125rem;
+            color: $text-color;
+            margin-bottom: 1rem;
+            line-height: 1.7;
+        }
+
+        .confirmation-instruction {
+            font-size: 1rem;
+            color: $text-light;
+            line-height: 1.6;
+        }
+    }
+}
+
 // Responsive Design
 @media (max-width: 768px) {
     .navbar {
@@ -625,9 +680,14 @@ footer {
     .features .features-grid {
         grid-template-columns: 1fr;
     }
-    
+
     section {
         padding: 3rem 0;
+    }
+
+    .confirmation-page .confirmation-card {
+        padding: 2rem 1.5rem;
+        margin: 0 1rem;
     }
 }
 
