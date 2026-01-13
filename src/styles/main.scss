@@ -571,6 +571,42 @@ footer {
     }
 }
 
+// Privacy Policy Page
+.privacy-policy {
+    padding: 3rem 0 5rem;
+
+    .pdf-viewer-wrapper {
+        background-color: $bg-card;
+        border: 1px solid $border-color;
+        border-radius: 1rem;
+        overflow: hidden;
+        box-shadow: $shadow-lg;
+    }
+
+    .pdf-viewer {
+        width: 100%;
+        height: 80vh;
+        min-height: 600px;
+        display: block;
+    }
+
+    .pdf-fallback {
+        padding: 4rem 2rem;
+        text-align: center;
+
+        p {
+            color: $text-color;
+            margin-bottom: 1.5rem;
+            font-size: 1.125rem;
+        }
+    }
+
+    .pdf-download {
+        margin-top: 2rem;
+        text-align: center;
+    }
+}
+
 // Confirmation Page
 .confirmation-page {
     min-height: calc(100vh - 200px);
@@ -688,6 +724,11 @@ footer {
     .confirmation-page .confirmation-card {
         padding: 2rem 1.5rem;
         margin: 0 1rem;
+    }
+
+    .privacy-policy .pdf-viewer {
+        height: 60vh;
+        min-height: 400px;
     }
 }
 
