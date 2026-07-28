@@ -571,39 +571,70 @@ footer {
     }
 }
 
-// Privacy Policy Page
-.privacy-policy {
+// Legal Documents (Privacy Policy, Terms)
+.legal-doc {
     padding: 3rem 0 5rem;
 
-    .pdf-viewer-wrapper {
+    .legal-doc-body {
         background-color: $bg-card;
         border: 1px solid $border-color;
         border-radius: 1rem;
-        overflow: hidden;
         box-shadow: $shadow-lg;
+        padding: 3rem 3.5rem;
+        max-width: 800px;
+        margin: 0 auto;
     }
 
-    .pdf-viewer {
-        width: 100%;
-        height: 80vh;
-        min-height: 600px;
-        display: block;
+    .legal-updated {
+        color: $text-light;
+        font-size: 0.9375rem;
+        margin-bottom: 2rem;
     }
 
-    .pdf-fallback {
-        padding: 4rem 2rem;
-        text-align: center;
+    .legal-lede {
+        font-size: 1.125rem;
+        color: $text-color;
+    }
 
-        p {
+    h2 {
+        font-size: 1.375rem;
+        color: $primary-color;
+        margin: 2.5rem 0 1rem;
+        padding-top: 2rem;
+        border-top: 1px solid $border-color;
+        font-weight: 700;
+    }
+
+    p {
+        color: $text-color;
+        margin-bottom: 1rem;
+        line-height: 1.8;
+    }
+
+    ul {
+        margin: 0 0 1rem 1.25rem;
+
+        li {
             color: $text-color;
-            margin-bottom: 1.5rem;
-            font-size: 1.125rem;
+            margin-bottom: 0.75rem;
+            line-height: 1.8;
         }
     }
 
-    .pdf-download {
-        margin-top: 2rem;
-        text-align: center;
+    strong {
+        color: #ffffff;
+        font-weight: 600;
+    }
+
+    a {
+        color: $primary-color;
+        text-decoration: none;
+        border-bottom: 1px solid rgba(245, 158, 11, 0.4);
+        transition: border-color 0.2s ease;
+
+        &:hover {
+            border-bottom-color: $primary-color;
+        }
     }
 }
 
@@ -726,9 +757,8 @@ footer {
         margin: 0 1rem;
     }
 
-    .privacy-policy .pdf-viewer {
-        height: 60vh;
-        min-height: 400px;
+    .legal-doc .legal-doc-body {
+        padding: 2rem 1.5rem;
     }
 }
 
