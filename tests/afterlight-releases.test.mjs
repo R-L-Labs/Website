@@ -18,18 +18,22 @@ function release({
   draft = false,
   prerelease = false,
   assets = canonicalAssets,
+  htmlUrl = `https://github.com/Luskish/afterlight-pack/releases/tag/${tagName}`,
+  name = `AFTERLIGHT ${tagName}`,
 }) {
   return {
     tag_name: tagName,
-    name: `AFTERLIGHT ${tagName}`,
-    html_url: `https://github.com/Luskish/afterlight-pack/releases/tag/${tagName}`,
+    name,
+    html_url: htmlUrl,
     published_at: publishedAt,
     draft,
     prerelease,
-    assets: assets.map((name) => ({
-      name,
-      browser_download_url: `https://downloads.example/${tagName}/${name}`,
-    })),
+    assets: assets.map((asset) => typeof asset === 'string'
+      ? {
+        name: asset,
+        browser_download_url: `https://github.com/Luskish/afterlight-pack/releases/download/${tagName}/${asset}`,
+      }
+      : asset),
   };
 }
 
@@ -82,4 +86,101 @@ test('returns the immutable pinned fallback when inventory fails or is incomplet
   assert.strictEqual(selectAfterlightRelease(incompleteInventory, PINNED_FALLBACK), PINNED_FALLBACK);
   assert.equal(Object.isFrozen(PINNED_FALLBACK), true);
   assert.equal(Object.isFrozen(PINNED_FALLBACK.assets), true);
+});
+
+test('rejects releases with invalid publication dates before sorting', () => {
+  const selected = selectAfterlightRelease([
+    release({
+      tagName: 'v2.0.0',
+      publishedAt: 'not-a-date',
+    }),
+    release({
+      tagName: 'v1.9.0',
+      publishedAt: '2026-08-12T12:00:00Z',
+    }),
+  ], PINNED_FALLBACK);
+
+  assert.equal(selected.tag_name, 'v1.9.0');
+});
+
+test('rejects malformed release record fields', () => {
+  const valid = release({
+    tagName: 'v2.0.0',
+    publishedAt: '2026-08-12T12:00:00Z',
+  });
+  const malformed = [
+    { ...valid, tag_name: '' },
+    { ...valid, name: '' },
+    { ...valid, html_url: undefined },
+    { ...valid, draft: 0 },
+    { ...valid, prerelease: 'false' },
+    { ...valid, assets: 'not-an-array' },
+  ];
+
+  for (const record of malformed) {
+    assert.strictEqual(selectAfterlightRelease([record], PINNED_FALLBACK), PINNED_FALLBACK);
+  }
+});
+
+test('rejects duplicate canonical asset records', () => {
+  const selected = selectAfterlightRelease([
+    release({
+      tagName: 'v2.0.0',
+      publishedAt: '2026-08-12T12:00:00Z',
+      assets: [...canonicalAssets, 'AFTERLIGHT-prism-instance.zip'],
+    }),
+  ], PINNED_FALLBACK);
+
+  assert.strictEqual(selected, PINNED_FALLBACK);
+});
+
+test('rejects asset records with missing download URLs', () => {
+  const selected = selectAfterlightRelease([
+    release({
+      tagName: 'v2.0.0',
+      publishedAt: '2026-08-12T12:00:00Z',
+      assets: [
+        { name: 'AFTERLIGHT-prism-instance.zip' },
+        ...canonicalAssets.slice(1),
+      ],
+    }),
+  ], PINNED_FALLBACK);
+
+  assert.strictEqual(selected, PINNED_FALLBACK);
+});
+
+test('rejects off-repository and unsafe release links', () => {
+  const tagName = 'v2.0.0';
+  const publishedAt = '2026-08-12T12:00:00Z';
+  const unsafeRecords = [
+    release({
+      tagName,
+      publishedAt,
+      htmlUrl: `http://github.com/Luskish/afterlight-pack/releases/tag/${tagName}`,
+    }),
+    release({
+      tagName,
+      publishedAt,
+      htmlUrl: `https://github.com/Other/afterlight-pack/releases/tag/${tagName}`,
+    }),
+    release({
+      tagName,
+      publishedAt,
+      htmlUrl: 'not-a-url',
+    }),
+    release({
+      tagName,
+      publishedAt,
+      assets: canonicalAssets.map((assetName, index) => ({
+        name: assetName,
+        browser_download_url: index === 0
+          ? `https://example.com/releases/download/${tagName}/${assetName}`
+          : `https://github.com/Luskish/afterlight-pack/releases/download/${tagName}/${assetName}`,
+      })),
+    }),
+  ];
+
+  for (const record of unsafeRecords) {
+    assert.strictEqual(selectAfterlightRelease([record], PINNED_FALLBACK), PINNED_FALLBACK);
+  }
 });

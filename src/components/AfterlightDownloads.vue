@@ -9,7 +9,7 @@
       aria-hidden="true"
     />
 
-    <svg class="signal-trace signal-trace-desktop" viewBox="0 0 1200 1600" preserveAspectRatio="none" aria-hidden="true">
+    <svg v-if="signalResolved" class="signal-trace signal-trace-desktop" viewBox="0 0 1200 1600" preserveAspectRatio="none" aria-hidden="true">
       <path class="trace-shadow" d="M790 360H550V450H520M82 790V835H50V1035H190V1060M190 1035H600V1060M600 1035H1010V1060" />
       <path class="trace-line trace-origin" pathLength="1" d="M790 360H550V450H520" />
       <path class="trace-line trace-trunk" pathLength="1" d="M82 790V835H50V1035H190V1060" />
@@ -23,14 +23,17 @@
       <circle cx="1010" cy="1060" r="7" />
     </svg>
 
-    <svg class="signal-trace signal-trace-mobile" viewBox="0 0 400 2500" preserveAspectRatio="none" aria-hidden="true">
-      <path class="trace-shadow" d="M200 520V740H30V1060H52V1300H30V1550H52V1800" />
-      <path class="trace-line trace-origin" pathLength="1" d="M200 520V740H30V1060H52V1300H30V1550H52V1800" />
+    <svg v-if="signalResolved" class="signal-trace signal-trace-mobile" viewBox="0 0 400 3000" preserveAspectRatio="none" aria-hidden="true">
+      <path class="trace-shadow" d="M200 520V740H8V2900M8 1060H30M8 1300H30M8 1744H30M8 2130H30M8 2490H30M8 2804H30" />
+      <path class="trace-line trace-origin" pathLength="1" d="M200 520V740H8V2900M8 1060H30M8 1300H30M8 1744H30M8 2130H30M8 2490H30M8 2804H30" />
       <circle cx="200" cy="520" r="6" />
-      <circle cx="30" cy="740" r="6" />
-      <circle cx="52" cy="1060" r="6" />
-      <circle cx="52" cy="1300" r="6" />
-      <circle cx="52" cy="1800" r="6" />
+      <circle cx="8" cy="740" r="6" />
+      <circle cx="8" cy="1060" r="6" />
+      <circle cx="8" cy="1300" r="6" />
+      <circle cx="8" cy="1744" r="6" />
+      <circle cx="8" cy="2130" r="6" />
+      <circle cx="8" cy="2490" r="6" />
+      <circle cx="8" cy="2804" r="6" />
     </svg>
 
     <section class="portal-hero" aria-labelledby="afterlight-title">
@@ -68,6 +71,9 @@
           <p v-if="notice" class="release-notice" role="status">
             {{ notice }}
           </p>
+          <p v-if="liveAnnouncement" class="sr-only" role="status">
+            {{ liveAnnouncement }}
+          </p>
 
           <dl class="release-facts" aria-live="polite">
             <div>
@@ -87,13 +93,21 @@
           <div class="release-records">
             <a v-if="checksumAsset" :href="checksumAsset.browser_download_url">SHA256SUMS</a>
             <span v-else class="missing-record">SHA256SUMS unavailable</span>
-            <a :href="release.html_url" target="_blank" rel="noreferrer noopener">Release notes</a>
+            <a v-if="releasePageUrl" :href="releasePageUrl" target="_blank" rel="noreferrer noopener">Release notes</a>
           </div>
 
           <div class="server-node">
             <div>
-              <p class="console-label">SERVER ADDRESS</p>
-              <code id="server-address">{{ serverAddress }}</code>
+              <label class="console-label" for="server-address">SERVER ADDRESS</label>
+              <input
+                id="server-address"
+                ref="serverAddressField"
+                class="server-address-field"
+                type="text"
+                :value="serverAddress"
+                readonly
+                @focus="$event.currentTarget.select()"
+              />
             </div>
             <button type="button" aria-describedby="server-copy-status" @click="copyServerAddress">
               {{ copyButtonLabel }}
@@ -162,16 +176,34 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue';
-import { PINNED_FALLBACK, selectAfterlightRelease } from '../lib/afterlight-releases.mjs';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import {
+  PINNED_FALLBACK,
+  isTrustedAfterlightAssetUrl,
+  isTrustedAfterlightReleasePageUrl,
+  selectAfterlightRelease,
+} from '../lib/afterlight-releases.mjs';
+import {
+  RELEASE_FAILURE,
+  copyAddressWithFallback,
+  fetchReleaseInventory,
+  getReleaseFailureNotice,
+} from '../lib/afterlight-portal.mjs';
 
 const releasesApi = 'https://api.github.com/repos/Luskish/afterlight-pack/releases?per_page=20';
 const serverAddress = '104.128.55.166';
 const release = ref(PINNED_FALLBACK);
 const signalState = ref('acquiring');
 const notice = ref('');
+const liveAnnouncement = ref('');
 const copyStatus = ref('');
 const copyButtonLabel = ref('Copy address');
+const serverAddressField = ref(null);
+let inventoryController = null;
+let inventoryTimeout = null;
+let isUnmounted = false;
+
+const signalResolved = computed(() => signalState.value !== 'acquiring');
 
 const stateTitle = computed(() => {
   if (signalState.value === 'live') return 'Live release verified';
@@ -191,7 +223,27 @@ const publicationDate = computed(() => {
     }).format(published);
 });
 
-const checksumAsset = computed(() => release.value.assets.find((asset) => asset.name === 'SHA256SUMS'));
+const releasePageUrl = computed(() => (
+  isTrustedAfterlightReleasePageUrl(release.value.html_url, release.value.tag_name)
+    ? release.value.html_url
+    : null
+));
+
+function trustedAsset(assetName) {
+  const asset = Array.isArray(release.value.assets)
+    ? release.value.assets.find((candidate) => candidate.name === assetName)
+    : undefined;
+
+  return asset && isTrustedAfterlightAssetUrl(
+    asset.browser_download_url,
+    release.value.tag_name,
+    asset.name,
+  )
+    ? asset
+    : undefined;
+}
+
+const checksumAsset = computed(() => trustedAsset('SHA256SUMS'));
 
 const launcherBays = computed(() => [
   {
@@ -200,7 +252,7 @@ const launcherBays = computed(() => [
     name: 'Prism Launcher',
     recommended: true,
     assetName: 'AFTERLIGHT-prism-instance.zip',
-    asset: release.value.assets.find((asset) => asset.name === 'AFTERLIGHT-prism-instance.zip'),
+    asset: trustedAsset('AFTERLIGHT-prism-instance.zip'),
     action: 'Download Prism ZIP',
     description: 'Import once. Packwiz checks the stable GitHub Pages channel every launch, keeping the instance aligned with approved updates.',
   },
@@ -210,7 +262,7 @@ const launcherBays = computed(() => [
     name: 'CurseForge',
     recommended: false,
     assetName: 'AFTERLIGHT-curseforge.zip',
-    asset: release.value.assets.find((asset) => asset.name === 'AFTERLIGHT-curseforge.zip'),
+    asset: trustedAsset('AFTERLIGHT-curseforge.zip'),
     action: 'Download CurseForge ZIP',
     description: 'For each update, import the newest ZIP as a separate profile. Existing CurseForge profiles do not update in place.',
   },
@@ -220,7 +272,7 @@ const launcherBays = computed(() => [
     name: 'Compatible launchers',
     recommended: false,
     assetName: 'AFTERLIGHT.mrpack',
-    asset: release.value.assets.find((asset) => asset.name === 'AFTERLIGHT.mrpack'),
+    asset: trustedAsset('AFTERLIGHT.mrpack'),
     action: 'Download mrpack',
     description: 'Use the mrpack as the manual fallback for launchers that support the Modrinth pack format.',
   },
@@ -228,74 +280,90 @@ const launcherBays = computed(() => [
 
 async function loadReleaseInventory() {
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 6000);
+  inventoryController = controller;
+  inventoryTimeout = window.setTimeout(() => controller.abort(RELEASE_FAILURE.TIMEOUT), 6000);
+
+  let result;
 
   try {
-    const response = await fetch(releasesApi, {
-      headers: {
-        Accept: 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28',
-      },
+    result = await fetchReleaseInventory({
+      fetchImpl: fetch,
+      url: releasesApi,
       signal: controller.signal,
     });
-
-    if (!response.ok) {
-      throw new Error(`GitHub releases returned ${response.status}`);
+  } finally {
+    if (inventoryTimeout !== null) {
+      window.clearTimeout(inventoryTimeout);
+      inventoryTimeout = null;
     }
+  }
 
-    const releases = await response.json();
-    if (!Array.isArray(releases)) {
-      throw new TypeError('GitHub releases response was not an array');
-    }
+  if (isUnmounted || inventoryController !== controller) {
+    return;
+  }
 
-    const selected = selectAfterlightRelease(releases, PINNED_FALLBACK);
-    release.value = selected;
+  inventoryController = null;
+  liveAnnouncement.value = '';
 
-    if (selected === PINNED_FALLBACK) {
-      signalState.value = 'fallback';
-      notice.value = `The live inventory does not contain all three launcher archives. Serving pinned known-good ${PINNED_FALLBACK.tag_name}.`;
+  if (!result.ok) {
+    if (result.reason === RELEASE_FAILURE.CANCELLED) {
       return;
     }
 
-    if (!selected.assets.some((asset) => asset.name === 'SHA256SUMS')) {
-      signalState.value = 'fault';
-      notice.value = 'The release archives are complete, but the checksum record is unavailable. Verify the release page before installing.';
-      return;
-    }
-
-    signalState.value = 'live';
-  } catch {
     release.value = PINNED_FALLBACK;
     signalState.value = 'fallback';
-    notice.value = `The live release service did not answer. Serving pinned known-good ${PINNED_FALLBACK.tag_name}.`;
-  } finally {
-    window.clearTimeout(timeout);
+    notice.value = getReleaseFailureNotice(result.reason, PINNED_FALLBACK.tag_name);
+    return;
   }
+
+  const selected = selectAfterlightRelease(result.releases, PINNED_FALLBACK);
+  release.value = selected;
+
+  if (selected === PINNED_FALLBACK) {
+    signalState.value = 'fallback';
+    notice.value = getReleaseFailureNotice(RELEASE_FAILURE.INCOMPLETE, PINNED_FALLBACK.tag_name);
+    return;
+  }
+
+  if (!trustedAsset('SHA256SUMS')) {
+    signalState.value = 'fault';
+    notice.value = 'The release archives are complete, but the checksum record is unavailable. Verify the release page before installing.';
+    return;
+  }
+
+  signalState.value = 'live';
+  notice.value = '';
+  liveAnnouncement.value = `Live release ${selected.tag_name} verified.`;
 }
 
 async function copyServerAddress() {
-  try {
-    await navigator.clipboard.writeText(serverAddress);
-    copyButtonLabel.value = 'Copied';
-    copyStatus.value = `${serverAddress} copied to clipboard.`;
-  } catch {
-    const textArea = document.createElement('textarea');
-    textArea.value = serverAddress;
-    textArea.style.position = 'fixed';
-    textArea.style.opacity = '0';
-    document.body.appendChild(textArea);
-    textArea.select();
-    const copied = document.execCommand('copy');
-    textArea.remove();
+  const outcome = await copyAddressWithFallback({
+    address: serverAddress,
+    clipboard: navigator.clipboard,
+    document,
+    field: serverAddressField.value,
+  });
 
-    copyButtonLabel.value = copied ? 'Copied' : 'Select address';
-    copyStatus.value = copied
-      ? `${serverAddress} copied to clipboard.`
-      : 'Copy is unavailable. Select the server address and copy it manually.';
+  if (isUnmounted) {
+    return;
   }
+
+  copyButtonLabel.value = outcome.buttonLabel;
+  copyStatus.value = outcome.status;
 }
 
 onMounted(loadReleaseInventory);
+
+onBeforeUnmount(() => {
+  isUnmounted = true;
+  inventoryController?.abort(RELEASE_FAILURE.CANCELLED);
+  inventoryController = null;
+
+  if (inventoryTimeout !== null) {
+    window.clearTimeout(inventoryTimeout);
+    inventoryTimeout = null;
+  }
+});
 </script>
 
 <style scoped>
@@ -310,13 +378,17 @@ onMounted(loadReleaseInventory);
   --fault: #d85a52;
   --bone: #d9d0be;
   --muted: #938f84;
-  --signal: var(--cyan);
+  --signal: #747f81;
   position: relative;
   isolation: isolate;
   overflow: hidden;
   color: var(--bone);
   background: var(--vault);
   font-family: 'Inter', sans-serif;
+}
+
+.signal-system.signal-live {
+  --signal: var(--cyan);
 }
 
 .signal-system.signal-fallback {
@@ -656,8 +728,16 @@ onMounted(loadReleaseInventory);
   border-top: 1px solid #30383b;
 }
 
-.server-node code {
+.server-address-field {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 0.2rem 0;
+  border: 0;
+  border-bottom: 1px solid #4b5659;
+  border-radius: 0;
   color: var(--bone);
+  background: transparent;
   font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
   font-size: 1.05rem;
 }
@@ -756,7 +836,7 @@ onMounted(loadReleaseInventory);
 }
 
 .bay-prism {
-  --bay-accent: var(--cyan);
+  --bay-accent: var(--signal);
 }
 
 .bay-curseforge {
@@ -780,8 +860,8 @@ onMounted(loadReleaseInventory);
   width: fit-content;
   margin-top: 0.7rem;
   padding-left: 0.7rem;
-  border-left: 2px solid var(--cyan);
-  color: var(--cyan);
+  border-left: 2px solid var(--signal);
+  color: var(--signal);
   font: 500 0.7rem/1.4 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
   text-transform: uppercase;
 }
@@ -891,9 +971,22 @@ onMounted(loadReleaseInventory);
 }
 
 a:focus-visible,
-button:focus-visible {
+button:focus-visible,
+input:focus-visible {
   outline: 3px solid var(--bone);
   outline-offset: 4px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 @keyframes acquire-signal {
@@ -920,8 +1013,41 @@ button:focus-visible {
 
   .signal-trace-mobile {
     display: block;
-    z-index: 1;
-    height: 2500px;
+    z-index: 3;
+    height: 3000px;
+  }
+
+  .portal-hero {
+    z-index: auto;
+  }
+
+  .hero-copy,
+  .echo-figure,
+  .release-console {
+    position: relative;
+    z-index: 4;
+  }
+
+  .download-deck {
+    z-index: auto;
+    background: transparent;
+  }
+
+  .download-deck::before {
+    content: '';
+    position: absolute;
+    z-index: 2;
+    inset: 0;
+    border-top: 1px solid #2d3537;
+    border-bottom: 1px solid #2d3537;
+    background: var(--basalt);
+    pointer-events: none;
+  }
+
+  .deck-heading,
+  .launcher-bays {
+    position: relative;
+    z-index: 4;
   }
 
   .portal-hero,
