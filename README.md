@@ -15,13 +15,13 @@ A modern, responsive website for R&L Labs, LLC built with Astro, Vue, and SCSS.
 
 ### Prerequisites
 
-- Node.js 18+ and npm
+- Node.js 22.17.1 and npm
 
 ### Installation
 
 1. Install dependencies:
 ```bash
-npm install
+npm ci
 ```
 
 2. Set up environment variables:
