@@ -44,7 +44,10 @@ export async function fetchReleaseInventory({ fetchImpl, url, signal }) {
   try {
     releases = await response.json();
   } catch {
-    return { ok: false, reason: RELEASE_FAILURE.INVALID_JSON };
+    return {
+      ok: false,
+      reason: signal?.aborted ? abortedReason(signal) : RELEASE_FAILURE.INVALID_JSON,
+    };
   }
 
   return Array.isArray(releases)

@@ -70,6 +70,38 @@ test('classifies timeout cancellation separately from network failure', async ()
   assert.deepEqual(await pending, { ok: false, reason: RELEASE_FAILURE.TIMEOUT });
 });
 
+test('preserves timeout classification when response body parsing is aborted', async () => {
+  const controller = new AbortController();
+  let bodyStarted;
+  const parsing = new Promise((resolve) => { bodyStarted = resolve; });
+  const pending = fetchReleaseInventory({
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      json: () => {
+        bodyStarted();
+        return new Promise((resolve, reject) => {
+          if (controller.signal.aborted) {
+            reject(new DOMException('Aborted', 'AbortError'));
+            return;
+          }
+
+          controller.signal.addEventListener('abort', () => {
+            reject(new DOMException('Aborted', 'AbortError'));
+          }, { once: true });
+        });
+      },
+    }),
+    url: releasesUrl,
+    signal: controller.signal,
+  });
+
+  await parsing;
+  controller.abort(RELEASE_FAILURE.TIMEOUT);
+
+  assert.deepEqual(await pending, { ok: false, reason: RELEASE_FAILURE.TIMEOUT });
+});
+
 test('returns cancellation without terminal inventory when unmount aborts', async () => {
   const controller = new AbortController();
   const pending = fetchReleaseInventory({

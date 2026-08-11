@@ -6,6 +6,7 @@ export const REQUIRED_CLIENT_ASSETS = Object.freeze([
 
 const RELEASES_PATH = '/Luskish/afterlight-pack/releases';
 const TAG_PATTERN = /^[0-9A-Za-z][0-9A-Za-z._-]*$/;
+const GITHUB_UTC_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
 
 export const PINNED_FALLBACK = Object.freeze({
   tag_name: 'v0.9.0-rc.2',
@@ -64,6 +65,16 @@ function isValidTagName(tagName) {
   return isNonEmptyString(tagName) && TAG_PATTERN.test(tagName);
 }
 
+function isValidGithubUtcTimestamp(value) {
+  if (typeof value !== 'string' || !GITHUB_UTC_TIMESTAMP_PATTERN.test(value)) {
+    return false;
+  }
+
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp)
+    && new Date(timestamp).toISOString() === `${value.slice(0, -1)}.000Z`;
+}
+
 export function isTrustedAfterlightReleasePageUrl(value, tagName) {
   if (!isValidTagName(tagName)) {
     return false;
@@ -89,8 +100,7 @@ function isCompleteRelease(release) {
     || typeof release.draft !== 'boolean'
     || typeof release.prerelease !== 'boolean'
     || release.draft
-    || !isNonEmptyString(release.published_at)
-    || !Number.isFinite(Date.parse(release.published_at))
+    || !isValidGithubUtcTimestamp(release.published_at)
     || !isTrustedAfterlightReleasePageUrl(release.html_url, release.tag_name)
     || !Array.isArray(release.assets)) {
     return false;

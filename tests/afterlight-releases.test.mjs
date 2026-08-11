@@ -103,6 +103,40 @@ test('rejects releases with invalid publication dates before sorting', () => {
   assert.equal(selected.tag_name, 'v1.9.0');
 });
 
+test('rejects impossible calendar timestamps before sorting valid releases', () => {
+  const selected = selectAfterlightRelease([
+    release({
+      tagName: 'v2.0.0',
+      publishedAt: '2027-02-30T12:00:00Z',
+    }),
+    release({
+      tagName: 'v1.9.0',
+      publishedAt: '2027-02-28T12:00:00Z',
+    }),
+  ], PINNED_FALLBACK);
+
+  assert.equal(selected.tag_name, 'v1.9.0');
+});
+
+test('rejects noncanonical GitHub timestamp shapes', () => {
+  const invalidTimestamps = [
+    '2027-03-01T12:00:00.000Z',
+    '2027-03-01T12:00:00+00:00',
+  ];
+
+  for (const publishedAt of invalidTimestamps) {
+    const selected = selectAfterlightRelease([
+      release({ tagName: 'v2.0.0', publishedAt }),
+      release({
+        tagName: 'v1.9.0',
+        publishedAt: '2027-02-28T12:00:00Z',
+      }),
+    ], PINNED_FALLBACK);
+
+    assert.equal(selected.tag_name, 'v1.9.0');
+  }
+});
+
 test('rejects malformed release record fields', () => {
   const valid = release({
     tagName: 'v2.0.0',
