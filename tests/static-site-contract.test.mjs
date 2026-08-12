@@ -10,6 +10,8 @@ import { parse } from 'parse5';
 const projectRoot = fileURLToPath(new URL('..', import.meta.url));
 const fixtureComponentUrl = '/_astro/FixtureIsland.Abc123.js';
 const fixtureRendererUrl = '/_astro/client.Def456.js';
+const uncontractedComponentUrl = '/_astro/UncontractedIsland.Ghi789.js';
+const uncontractedRendererUrl = '/_astro/client.Jkl012.js';
 
 async function createFixture() {
   const root = await mkdtemp(join(tmpdir(), 'afterlight-static-contract-'));
@@ -18,9 +20,11 @@ async function createFixture() {
   await mkdir(join(output, '_astro'));
   await writeFile(join(output, fixtureComponentUrl.slice(1)), 'export default {}\n');
   await writeFile(join(output, fixtureRendererUrl.slice(1)), 'export const renderer = {}\n');
+  await writeFile(join(output, uncontractedComponentUrl.slice(1)), 'export default {}\n');
+  await writeFile(join(output, uncontractedRendererUrl.slice(1)), 'export const renderer = {}\n');
   await writeFile(
     join(output, 'index.html'),
-    `<!doctype html><html><head><title>Fixture</title></head><body><h1>Signal ready</h1><astro-island component-url="${fixtureComponentUrl}" component-export="default" renderer-url="${fixtureRendererUrl}" client="load" opts='{"name":"FixtureIsland","value":true}'></astro-island></body></html>`,
+    `<!doctype html><html><head><title>Fixture</title></head><body><h1>Signal ready</h1><astro-island component-url="${fixtureComponentUrl}" component-export="default" renderer-url="${fixtureRendererUrl}" client="load" opts='{"name":"FixtureIsland","value":true}'></astro-island><astro-island component-url="${uncontractedComponentUrl}" component-export="default" renderer-url="${uncontractedRendererUrl}" client="idle" opts='{"name":"UncontractedIsland","value":true}'></astro-island></body></html>`,
   );
   await writeFile(join(root, 'contract.json'), JSON.stringify({
     version: 1,
@@ -147,6 +151,24 @@ test('rejects an Astro island whose component URL does not match its required id
 
   assert.equal(result.status, 1);
   assert.match(result.stderr, /FixtureIsland.*component identity/);
+});
+
+test('rejects a missing component module for an uncontracted Astro island', async () => {
+  const root = await createFixture();
+  await unlink(join(root, 'dist', uncontractedComponentUrl.slice(1)));
+  const result = runContract(root);
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /UncontractedIsland component-url does not resolve to a regular file/);
+});
+
+test('rejects a missing renderer module for an uncontracted Astro island', async () => {
+  const root = await createFixture();
+  await unlink(join(root, 'dist', uncontractedRendererUrl.slice(1)));
+  const result = runContract(root);
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /UncontractedIsland renderer-url does not resolve to a regular file/);
 });
 
 for (const moduleFixture of [
@@ -308,7 +330,7 @@ test('accepts an internal link to a regular generated file', async () => {
   assert.equal(result.status, 0, result.stderr);
 });
 
-test('rejects deleted required island modules from a real Astro build', async (context) => {
+test('rejects deleted emitted island modules from a real Astro build', async (context) => {
   const root = await mkdtemp(join(tmpdir(), 'afterlight-real-build-contract-'));
   const pristineOutput = join(root, 'pristine');
   const build = spawnSync(join(projectRoot, 'node_modules', '.bin', 'astro'), [
@@ -329,9 +351,21 @@ test('rejects deleted required island modules from a real Astro build', async (c
     await readFile(join(pristineOutput, 'contact', 'index.html'), 'utf8'),
     'ContactForm',
   );
+  const navbarIsland = generatedIslandAttributes(
+    await readFile(join(pristineOutput, 'index.html'), 'utf8'),
+    'Navbar',
+  );
+  const footerIsland = generatedIslandAttributes(
+    await readFile(join(pristineOutput, 'index.html'), 'utf8'),
+    'Footer',
+  );
   assert.ok(afterlightIsland);
   assert.ok(contactIsland);
+  assert.ok(navbarIsland);
+  assert.ok(footerIsland);
   assert.equal(afterlightIsland['renderer-url'], contactIsland['renderer-url']);
+  assert.equal(afterlightIsland['renderer-url'], navbarIsland['renderer-url']);
+  assert.equal(afterlightIsland['renderer-url'], footerIsland['renderer-url']);
 
   const mutations = [
     {
@@ -345,6 +379,18 @@ test('rejects deleted required island modules from a real Astro build', async (c
       component: 'ContactForm',
       attribute: 'component-url',
       url: contactIsland['component-url'],
+    },
+    {
+      name: 'Navbar component module',
+      component: 'Navbar',
+      attribute: 'component-url',
+      url: navbarIsland['component-url'],
+    },
+    {
+      name: 'Footer component module',
+      component: 'Footer',
+      attribute: 'component-url',
+      url: footerIsland['component-url'],
     },
     {
       name: 'shared Vue renderer module',

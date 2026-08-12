@@ -146,7 +146,25 @@ function generatedModuleFailure(route, component, attribute, reason) {
   return `${prefix} does not resolve to a regular file`;
 }
 
-async function validateRequiredIslands(document, distDirectory, route, requiredIslands) {
+async function validateIslandModules(document, distDirectory, route) {
+  const failures = [];
+  const islands = elements(document, 'astro-island');
+
+  for (const [index, node] of islands.entries()) {
+    const component = islandOptions(node)?.name ?? `Astro island ${index + 1}`;
+    const actual = attributes(node);
+    for (const attribute of ['component-url', 'renderer-url']) {
+      const moduleStatus = await generatedModuleStatus(distDirectory, actual[attribute]);
+      if (moduleStatus.reason) {
+        failures.push(generatedModuleFailure(route, component, attribute, moduleStatus.reason));
+      }
+    }
+  }
+
+  return failures;
+}
+
+function validateRequiredIslands(document, route, requiredIslands) {
   const failures = [];
   const islands = elements(document, 'astro-island');
 
@@ -161,16 +179,6 @@ async function validateRequiredIslands(document, distDirectory, route, requiredI
 
     if (namedIslands.length > 0 && identityMatches.length !== namedIslands.length) {
       failures.push(`${route}: ${expected.component} Astro island component identity changed`);
-    }
-
-    for (const node of namedIslands) {
-      const actual = attributes(node);
-      for (const attribute of ['component-url', 'renderer-url']) {
-        const moduleStatus = await generatedModuleStatus(distDirectory, actual[attribute]);
-        if (moduleStatus.reason) {
-          failures.push(generatedModuleFailure(route, expected.component, attribute, moduleStatus.reason));
-        }
-      }
     }
 
     const hydrated = identityMatches.filter((node) => (
@@ -340,7 +348,8 @@ async function validateRoute(distDirectory, route, expected) {
     }
   }
 
-  failures.push(...await validateRequiredIslands(document, distDirectory, route, expected.requiredIslands));
+  failures.push(...await validateIslandModules(document, distDirectory, route));
+  failures.push(...validateRequiredIslands(document, route, expected.requiredIslands));
 
   const links = await validateInternalLinks(document, distDirectory, route);
   failures.push(...links.failures);

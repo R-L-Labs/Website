@@ -384,3 +384,95 @@ Exact direct versions remain `astro@7.2.1`, `@astrojs/vue@7.0.2`, `vue@3.5.41`, 
 No workflow file changed. The previously accepted least-privilege GitHub Actions exploit review remains valid, subject to the final parsed workflow gate. No push, merge, deployment, DNS change, or VPS action occurred.
 
 Remaining concerns are unchanged: the complete future public release does not yet exist, and GitHub-hosted CI has not run because pushing is forbidden.
+
+## Fix Round 3
+
+Review base: `01fe027b3d041a96122667e99ace622af1f3330f`
+
+Date: August 11, 2026
+
+This round closes the single Important finding in `task-4-security-rereview-2.md`. Production pages, components, styles, copy, portal behavior, EmailJS behavior, dependencies, and workflow files are unchanged.
+
+### Every-Island Module Validation
+
+Generated module validation now runs over every parsed `astro-island` before contract-specific component identity, count, export, and hydration rules. Each island's `component-url` and `renderer-url` must retain the previously accepted guarantees:
+
+- Present and root-relative below `/_astro/`.
+- Validly URI-decoded with no literal or encoded parent traversal.
+- Internal rather than external, query-bearing, or fragment-bearing.
+- Lexically contained beneath `dist`.
+- Realpath-contained beneath the real `dist` root.
+- Free of symlinks in every resolved path component.
+- Present as a regular file rather than a missing path, directory, or other file type.
+
+The required-island contract remains a separate second pass. It still protects exact `AfterlightDownloads` and `ContactForm` identities, counts, default exports, and `client:load` hydration without limiting module safety checks to those names.
+
+### Fixture and Real-Build Coverage
+
+The static fixture now emits a second island that is intentionally absent from `requiredIslands`, with real component and renderer files. Deleting either file must fail with an `UncontractedIsland` diagnostic. This directly protects against restoring the previous required-name filter.
+
+The real-build mutation matrix now deletes these generated files one at a time from independent copies of a pristine Astro build:
+
+- `/_astro/AfterlightDownloads.DWj2ojtF.js`
+- `/_astro/ContactForm.Dr0w6QQ9.js`
+- `/_astro/Navbar.CUtxPMUx.js`
+- `/_astro/Footer.C5hnxm5p.js`
+- `/_astro/client.WecZJgpX.js`, the shared Vue renderer
+
+Every deletion exits 1 and identifies the missing component or renderer as not resolving to a regular file. The existing malformed encoding, traversal, external URL, directory, in-dist symlink, symlink escape, route, and internal-link fixtures remain green.
+
+### Round 3 TDD Evidence
+
+Focused RED before the checker change:
+
+```text
+node --test tests/static-site-contract.test.mjs
+# tests 35
+# pass 30
+# fail 5
+ROUND3_RED_EXIT=1
+```
+
+The uncontracted fixture component and renderer deletions returned status 0. The real Navbar and Footer deletion subtests also returned status 0 with six routes and 58 generated references reported as verified. Their two failures also failed the containing real-build test, producing five reported failures total.
+
+Focused GREEN after moving module validation before contract filtering:
+
+```text
+node --test tests/static-site-contract.test.mjs
+# tests 35
+# pass 35
+# fail 0
+```
+
+The complete Node suite reported 121 pass and 0 fail. The production build remained fully static with six pages. `check:site` verified six routes and 58 generated references. Repository security remained all green, the parsed workflow review reported one workflow and zero findings, and npm audit remained zero at every severity.
+
+### Round 3 Browser Evidence
+
+Production `astro preview` served the reviewed build on `127.0.0.1:4321`.
+
+Desktop at 1440 by 1000:
+
+- All six routes rendered expected titles and primary headings without horizontal overflow.
+- The live fixture produced `Live release verified`, release `v1.0.0`, and three launcher downloads.
+- Generated `/afterlight` output hydrated `Navbar`, `AfterlightDownloads`, and `Footer` islands.
+- Generated `/contact` output hydrated `Navbar`, `ContactForm`, and `Footer` islands.
+- Clipboard denial selected the full visible address and preserved manual-copy guidance.
+- Reduced motion matched, trace animation was `none`, and download transition duration was `0s`.
+- Empty contact submission remained invalid and focused `name`.
+- Filled contact submission reached the unchanged handler, displayed the existing missing-EmailJS-configuration error, preserved values, and re-enabled submit.
+
+Mobile iPhone 12 emulation at 390 by 844:
+
+- All six routes retained expected titles and primary headings without horizontal overflow.
+- Forced release-service failure produced the exact existing pinned `v0.9.0-rc.2` notice, one launcher download, and two unavailable launcher bays.
+- The AFTERLIGHT mobile route hydrated `Navbar`, `AfterlightDownloads`, and `Footer`.
+
+Delayed fetch unmount recorded `started: true`, `islandRemoved: true`, `aborted: true`, `reason: cancelled`, no remaining AFTERLIGHT island, and no terminal portal state. Browser page-error collection was empty. All browser sessions closed, Astro reported no preview server, port 4321 stopped listening, and no browser process remained.
+
+### Preserved Security Posture
+
+Direct versions remain exactly `astro@7.2.1`, `@astrojs/vue@7.0.2`, `vue@3.5.41`, `sass@1.102.0`, `@emailjs/browser@4.4.1`, `parse5@8.0.1`, `smol-toml@1.8.0`, and `yaml@2.9.0`. Audit remains 0 total, 0 low, 0 moderate, 0 high, and 0 critical.
+
+No workflow changed. The accepted least-privilege workflow review remains valid, subject to the final parsed workflow gate. No push, pull request, merge, deployment, DNS change, or VPS action occurred.
+
+Remaining concerns are unchanged: the complete future public release does not yet exist, and GitHub-hosted CI has not run because pushing is forbidden.
