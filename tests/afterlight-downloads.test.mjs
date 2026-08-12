@@ -129,9 +129,9 @@ test('renders the pinned portal state when live inventory fails', async () => {
     const state = app._instance.setupState;
     assert.equal(state.signalState, 'fallback');
     assert.equal(state.stateTitle, 'Pinned release active');
-    assert.equal(state.release.tag_name, 'v0.9.0-rc.2');
+    assert.equal(state.release.tag_name, 'v1.0.0-rc.1');
     assert.match(state.notice, /could not be reached/i);
-    assert.equal(state.launcherBays.filter((bay) => bay.asset).length, 1);
+    assert.equal(state.launcherBays.filter((bay) => bay.asset).length, 3);
   } finally {
     app?.unmount();
     if (originalWindow === undefined) delete globalThis.window;

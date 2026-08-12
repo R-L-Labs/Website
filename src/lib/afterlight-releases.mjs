@@ -9,25 +9,33 @@ const TAG_PATTERN = /^[0-9A-Za-z][0-9A-Za-z._-]*$/;
 const GITHUB_UTC_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
 
 export const PINNED_FALLBACK = Object.freeze({
-  tag_name: 'v0.9.0-rc.2',
-  name: 'AFTERLIGHT 0.9.0-rc.2',
-  html_url: 'https://github.com/Luskish/afterlight-pack/releases/tag/v0.9.0-rc.2',
-  published_at: '2026-08-10T17:53:59Z',
+  tag_name: 'v1.0.0-rc.1',
+  name: 'AFTERLIGHT 1.0.0-rc.1',
+  html_url: 'https://github.com/Luskish/afterlight-pack/releases/tag/v1.0.0-rc.1',
+  published_at: '2026-08-12T12:00:00Z',
   draft: false,
   prerelease: true,
   fallback: true,
   assets: Object.freeze([
     Object.freeze({
       name: 'AFTERLIGHT-prism-instance.zip',
-      browser_download_url: 'https://github.com/Luskish/afterlight-pack/releases/download/v0.9.0-rc.2/AFTERLIGHT-prism-instance.zip',
+      browser_download_url: 'https://github.com/Luskish/afterlight-pack/releases/download/v1.0.0-rc.1/AFTERLIGHT-prism-instance.zip',
+    }),
+    Object.freeze({
+      name: 'AFTERLIGHT-curseforge.zip',
+      browser_download_url: 'https://github.com/Luskish/afterlight-pack/releases/download/v1.0.0-rc.1/AFTERLIGHT-curseforge.zip',
+    }),
+    Object.freeze({
+      name: 'AFTERLIGHT.mrpack',
+      browser_download_url: 'https://github.com/Luskish/afterlight-pack/releases/download/v1.0.0-rc.1/AFTERLIGHT.mrpack',
     }),
     Object.freeze({
       name: 'SHA256SUMS',
-      browser_download_url: 'https://github.com/Luskish/afterlight-pack/releases/download/v0.9.0-rc.2/SHA256SUMS',
+      browser_download_url: 'https://github.com/Luskish/afterlight-pack/releases/download/v1.0.0-rc.1/SHA256SUMS',
     }),
     Object.freeze({
       name: 'release-metadata.json',
-      browser_download_url: 'https://github.com/Luskish/afterlight-pack/releases/download/v0.9.0-rc.2/release-metadata.json',
+      browser_download_url: 'https://github.com/Luskish/afterlight-pack/releases/download/v1.0.0-rc.1/release-metadata.json',
     }),
   ]),
 });
