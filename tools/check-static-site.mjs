@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readdir, readFile, realpath, stat } from 'node:fs/promises';
+import { lstat, readdir, readFile, realpath, stat } from 'node:fs/promises';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { parse } from 'parse5';
 
@@ -74,7 +74,79 @@ function componentModuleMatches(value, component) {
     && !value.slice(prefix.length).includes('/');
 }
 
-function validateRequiredIslands(document, route, requiredIslands) {
+async function pathTraversesSymlink(root, candidate) {
+  const pathFromRoot = relative(root, candidate);
+  let current = root;
+
+  for (const segment of pathFromRoot.split(sep).filter(Boolean)) {
+    current = resolve(current, segment);
+    if ((await lstat(current)).isSymbolicLink()) return true;
+  }
+
+  return false;
+}
+
+async function generatedModuleStatus(distDirectory, value) {
+  if (typeof value !== 'string' || value.length === 0) return { reason: 'required' };
+
+  const decodedReference = decodedReferencePath(value);
+  if (decodedReference.error === 'malformed') return { reason: 'malformed' };
+  if (containsParentTraversal(decodedReference.path)) return { reason: 'traversal' };
+
+  let url;
+  try {
+    url = new URL(value, 'https://static.invalid/');
+  } catch {
+    return { reason: 'internal' };
+  }
+
+  const decodedPath = decodedReference.path;
+  const pathSegments = decodedPath.replaceAll('\\', '/').split('/');
+  if (
+    url.origin !== 'https://static.invalid'
+    || rawReferencePath(value) !== value
+    || !value.startsWith('/_astro/')
+    || !decodedPath.startsWith('/_astro/')
+    || decodedPath.includes('\\')
+    || decodedPath.includes('\0')
+    || !decodedPath.endsWith('.js')
+    || pathSegments.includes('.')
+  ) {
+    return { reason: 'internal' };
+  }
+
+  const distRoot = resolve(distDirectory);
+  const distRealPath = await realpath(distRoot);
+  const candidate = resolve(distRoot, decodedPath.replace(/^\/+/, ''));
+  if (!pathWithin(distRoot, candidate)) return { reason: 'escaped' };
+
+  let resolvedCandidate;
+  try {
+    resolvedCandidate = await realpath(candidate);
+  } catch (error) {
+    if (error?.code === 'ENOENT' || error?.code === 'ENOTDIR') return { reason: 'not-file' };
+    throw error;
+  }
+
+  if (!pathWithin(distRealPath, resolvedCandidate)) return { reason: 'escaped' };
+  if (await pathTraversesSymlink(distRoot, candidate)) return { reason: 'symlink' };
+  if (!(await stat(resolvedCandidate)).isFile()) return { reason: 'not-file' };
+
+  return { reason: null };
+}
+
+function generatedModuleFailure(route, component, attribute, reason) {
+  const prefix = `${route}: ${component} ${attribute}`;
+  if (reason === 'required') return `${prefix} is required`;
+  if (reason === 'malformed') return `${prefix} has malformed URI encoding`;
+  if (reason === 'traversal') return `${prefix} contains parent traversal`;
+  if (reason === 'internal') return `${prefix} must reference an internal generated JavaScript asset`;
+  if (reason === 'escaped') return `${prefix} escapes dist`;
+  if (reason === 'symlink') return `${prefix} must not traverse symlinks`;
+  return `${prefix} does not resolve to a regular file`;
+}
+
+async function validateRequiredIslands(document, distDirectory, route, requiredIslands) {
   const failures = [];
   const islands = elements(document, 'astro-island');
 
@@ -89,6 +161,16 @@ function validateRequiredIslands(document, route, requiredIslands) {
 
     if (namedIslands.length > 0 && identityMatches.length !== namedIslands.length) {
       failures.push(`${route}: ${expected.component} Astro island component identity changed`);
+    }
+
+    for (const node of namedIslands) {
+      const actual = attributes(node);
+      for (const attribute of ['component-url', 'renderer-url']) {
+        const moduleStatus = await generatedModuleStatus(distDirectory, actual[attribute]);
+        if (moduleStatus.reason) {
+          failures.push(generatedModuleFailure(route, expected.component, attribute, moduleStatus.reason));
+        }
+      }
     }
 
     const hydrated = identityMatches.filter((node) => (
@@ -258,7 +340,7 @@ async function validateRoute(distDirectory, route, expected) {
     }
   }
 
-  failures.push(...validateRequiredIslands(document, route, expected.requiredIslands));
+  failures.push(...await validateRequiredIslands(document, distDirectory, route, expected.requiredIslands));
 
   const links = await validateInternalLinks(document, distDirectory, route);
   failures.push(...links.failures);

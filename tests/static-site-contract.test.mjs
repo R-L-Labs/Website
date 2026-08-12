@@ -1,17 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, symlink, unlink, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, symlink, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { parse } from 'parse5';
+
+const projectRoot = fileURLToPath(new URL('..', import.meta.url));
+const fixtureComponentUrl = '/_astro/FixtureIsland.Abc123.js';
+const fixtureRendererUrl = '/_astro/client.Def456.js';
 
 async function createFixture() {
   const root = await mkdtemp(join(tmpdir(), 'afterlight-static-contract-'));
   const output = join(root, 'dist');
   await mkdir(output);
+  await mkdir(join(output, '_astro'));
+  await writeFile(join(output, fixtureComponentUrl.slice(1)), 'export default {}\n');
+  await writeFile(join(output, fixtureRendererUrl.slice(1)), 'export const renderer = {}\n');
   await writeFile(
     join(output, 'index.html'),
-    '<!doctype html><html><head><title>Fixture</title></head><body><h1>Signal ready</h1><astro-island component-url="/_astro/FixtureIsland.Abc123.js" component-export="default" renderer-url="/_astro/client.Def456.js" client="load" opts=\'{"name":"FixtureIsland","value":true}\'></astro-island></body></html>',
+    `<!doctype html><html><head><title>Fixture</title></head><body><h1>Signal ready</h1><astro-island component-url="${fixtureComponentUrl}" component-export="default" renderer-url="${fixtureRendererUrl}" client="load" opts='{"name":"FixtureIsland","value":true}'></astro-island></body></html>`,
   );
   await writeFile(join(root, 'contract.json'), JSON.stringify({
     version: 1,
@@ -28,15 +37,55 @@ async function createFixture() {
   return root;
 }
 
-function runContract(root) {
+function runContractPaths(distDirectory, contractPath) {
   return spawnSync(process.execPath, [
     'tools/check-static-site.mjs',
-    '--dist', join(root, 'dist'),
-    '--contract', join(root, 'contract.json'),
+    '--dist', distDirectory,
+    '--contract', contractPath,
   ], {
-    cwd: new URL('..', import.meta.url),
+    cwd: projectRoot,
     encoding: 'utf8',
   });
+}
+
+function runContract(root) {
+  return runContractPaths(join(root, 'dist'), join(root, 'contract.json'));
+}
+
+async function replaceIslandAttribute(root, name, currentValue, nextValue) {
+  const output = join(root, 'dist', 'index.html');
+  const source = await readFile(output, 'utf8');
+  const current = `${name}="${currentValue}"`;
+  assert.match(source, new RegExp(current.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  await writeFile(output, source.replace(current, `${name}="${nextValue}"`));
+}
+
+async function removeIslandAttribute(root, name, value) {
+  const output = join(root, 'dist', 'index.html');
+  const source = await readFile(output, 'utf8');
+  const current = ` ${name}="${value}"`;
+  assert.ok(source.includes(current));
+  await writeFile(output, source.replace(current, ''));
+}
+
+function generatedIslandAttributes(source, componentName) {
+  const document = parse(source);
+  const pending = [document];
+
+  while (pending.length > 0) {
+    const node = pending.pop();
+    if (node.tagName === 'astro-island') {
+      const actual = Object.fromEntries((node.attrs ?? []).map(({ name, value }) => [name, value]));
+      try {
+        if (JSON.parse(actual.opts ?? '{}').name === componentName) return actual;
+      } catch {
+        continue;
+      }
+    }
+    pending.push(...(node.childNodes ?? []));
+  }
+
+  return null;
 }
 
 test('accepts complete generated output matching the static site contract', async () => {
@@ -100,6 +149,104 @@ test('rejects an Astro island whose component URL does not match its required id
   assert.match(result.stderr, /FixtureIsland.*component identity/);
 });
 
+for (const moduleFixture of [
+  { attribute: 'component-url', value: fixtureComponentUrl },
+  { attribute: 'renderer-url', value: fixtureRendererUrl },
+]) {
+  test(`rejects a required Astro island missing its ${moduleFixture.attribute}`, async () => {
+    const root = await createFixture();
+    await removeIslandAttribute(root, moduleFixture.attribute, moduleFixture.value);
+    const result = runContract(root);
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, new RegExp(`FixtureIsland ${moduleFixture.attribute} is required`));
+  });
+
+  test(`rejects a missing required Astro island ${moduleFixture.attribute} file`, async () => {
+    const root = await createFixture();
+    await unlink(join(root, 'dist', moduleFixture.value.slice(1)));
+    const result = runContract(root);
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, new RegExp(`FixtureIsland ${moduleFixture.attribute} does not resolve to a regular file`));
+  });
+
+  test(`rejects a directory used as a required Astro island ${moduleFixture.attribute}`, async () => {
+    const root = await createFixture();
+    const modulePath = join(root, 'dist', moduleFixture.value.slice(1));
+    await unlink(modulePath);
+    await mkdir(modulePath);
+    const result = runContract(root);
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, new RegExp(`FixtureIsland ${moduleFixture.attribute} does not resolve to a regular file`));
+  });
+
+  test(`rejects malformed URI encoding in a required Astro island ${moduleFixture.attribute}`, async () => {
+    const root = await createFixture();
+    const malformed = moduleFixture.attribute === 'component-url'
+      ? '/_astro/FixtureIsland.%E0%A4%A.js'
+      : '/_astro/client.%E0%A4%A.js';
+    await replaceIslandAttribute(root, moduleFixture.attribute, moduleFixture.value, malformed);
+    const result = runContract(root);
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, new RegExp(`FixtureIsland ${moduleFixture.attribute} has malformed URI encoding`));
+  });
+
+  test(`rejects encoded parent traversal in a required Astro island ${moduleFixture.attribute}`, async () => {
+    const root = await createFixture();
+    const traversal = moduleFixture.attribute === 'component-url'
+      ? '/_astro/FixtureIsland.x%2f..%2f..%2f..%2foutside-component.js'
+      : '/_astro/client.x%2f..%2f..%2f..%2foutside-renderer.js';
+    const outsideName = moduleFixture.attribute === 'component-url'
+      ? 'outside-component.js'
+      : 'outside-renderer.js';
+    await writeFile(join(root, outsideName), 'export default {}\n');
+    await replaceIslandAttribute(root, moduleFixture.attribute, moduleFixture.value, traversal);
+    const result = runContract(root);
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, new RegExp(`FixtureIsland ${moduleFixture.attribute} contains parent traversal`));
+  });
+
+  test(`rejects an external required Astro island ${moduleFixture.attribute}`, async () => {
+    const root = await createFixture();
+    const external = `https://example.com${moduleFixture.value}`;
+    await replaceIslandAttribute(root, moduleFixture.attribute, moduleFixture.value, external);
+    const result = runContract(root);
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, new RegExp(`FixtureIsland ${moduleFixture.attribute} must reference an internal generated JavaScript asset`));
+  });
+
+  test(`rejects an in-dist symlink used by a required Astro island ${moduleFixture.attribute}`, async () => {
+    const root = await createFixture();
+    const modulePath = join(root, 'dist', moduleFixture.value.slice(1));
+    const targetName = `${moduleFixture.attribute}-target.js`;
+    await writeFile(join(root, 'dist', '_astro', targetName), 'export default {}\n');
+    await unlink(modulePath);
+    await symlink(targetName, modulePath);
+    const result = runContract(root);
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, new RegExp(`FixtureIsland ${moduleFixture.attribute} must not traverse symlinks`));
+  });
+
+  test(`rejects a symlink escape used by a required Astro island ${moduleFixture.attribute}`, async () => {
+    const root = await createFixture();
+    const modulePath = join(root, 'dist', moduleFixture.value.slice(1));
+    const outsidePath = join(root, `${moduleFixture.attribute}-outside.js`);
+    await writeFile(outsidePath, 'export default {}\n');
+    await unlink(modulePath);
+    await symlink(outsidePath, modulePath);
+    const result = runContract(root);
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, new RegExp(`FixtureIsland ${moduleFixture.attribute} escapes dist`));
+  });
+}
+
 test('rejects encoded parent traversal even when it reaches an existing file', async () => {
   const root = await createFixture();
   const output = join(root, 'dist', 'index.html');
@@ -159,4 +306,70 @@ test('accepts an internal link to a regular generated file', async () => {
   const result = runContract(root);
 
   assert.equal(result.status, 0, result.stderr);
+});
+
+test('rejects deleted required island modules from a real Astro build', async (context) => {
+  const root = await mkdtemp(join(tmpdir(), 'afterlight-real-build-contract-'));
+  const pristineOutput = join(root, 'pristine');
+  const build = spawnSync(join(projectRoot, 'node_modules', '.bin', 'astro'), [
+    'build',
+    '--outDir', pristineOutput,
+  ], {
+    cwd: projectRoot,
+    encoding: 'utf8',
+    env: { ...process.env, NO_COLOR: '1' },
+  });
+  assert.equal(build.status, 0, `${build.stdout}\n${build.stderr}`);
+
+  const afterlightIsland = generatedIslandAttributes(
+    await readFile(join(pristineOutput, 'afterlight', 'index.html'), 'utf8'),
+    'AfterlightDownloads',
+  );
+  const contactIsland = generatedIslandAttributes(
+    await readFile(join(pristineOutput, 'contact', 'index.html'), 'utf8'),
+    'ContactForm',
+  );
+  assert.ok(afterlightIsland);
+  assert.ok(contactIsland);
+  assert.equal(afterlightIsland['renderer-url'], contactIsland['renderer-url']);
+
+  const mutations = [
+    {
+      name: 'AfterlightDownloads component module',
+      component: 'AfterlightDownloads',
+      attribute: 'component-url',
+      url: afterlightIsland['component-url'],
+    },
+    {
+      name: 'ContactForm component module',
+      component: 'ContactForm',
+      attribute: 'component-url',
+      url: contactIsland['component-url'],
+    },
+    {
+      name: 'shared Vue renderer module',
+      component: 'AfterlightDownloads',
+      attribute: 'renderer-url',
+      url: afterlightIsland['renderer-url'],
+    },
+  ];
+
+  for (const mutation of mutations) {
+    await context.test(`fails after deleting the ${mutation.name}`, async () => {
+      assert.match(mutation.url, /^\/_astro\/[^/]+\.js$/);
+      const mutatedOutput = join(root, mutation.attribute, mutation.component);
+      await cp(pristineOutput, mutatedOutput, { recursive: true });
+      await unlink(join(mutatedOutput, mutation.url.slice(1)));
+
+      const result = runContractPaths(
+        mutatedOutput,
+        join(projectRoot, 'tests', 'fixtures', 'static-site-contract.json'),
+      );
+      assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+      assert.match(
+        result.stderr,
+        new RegExp(`${mutation.component} ${mutation.attribute} does not resolve to a regular file`),
+      );
+    });
+  }
 });
