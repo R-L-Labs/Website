@@ -13,6 +13,25 @@ import Layout from '../layouts/Layout.astro';
   <section class="projects">
     <div class="container">
       <div class="projects-grid">
+        <a class="project-card project-card-link afterlight-project" href="/afterlight">
+          <div class="project-image">
+            <img
+              src="/afterlight/signal-reliquary.webp"
+              alt="The AFTERLIGHT Far Relay rising beyond a dark stone signal platform"
+              width="1600"
+              height="900"
+            />
+          </div>
+          <div class="project-content">
+            <h3>AFTERLIGHT</h3>
+            <p>A story-driven NeoForge modpack built around lost infrastructure, guided automation, and a private expedition through the Far Relay.</p>
+            <div class="project-tags">
+              <span class="tag">Minecraft</span>
+              <span class="tag">NeoForge</span>
+              <span class="tag">Download Portal</span>
+            </div>
+          </div>
+        </a>
         <div class="project-card">
           <div class="project-image">
             <div class="project-placeholder">⚡</div>
@@ -46,3 +65,25 @@ import Layout from '../layouts/Layout.astro';
   </section>
 </Layout>
 
+<style>
+  .project-card-link {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .project-card-link:focus-visible {
+    outline: 3px solid #f59e0b;
+    outline-offset: 5px;
+  }
+
+  .afterlight-project .project-image {
+    background: #070a0b;
+  }
+
+  .afterlight-project .project-image img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+</style>

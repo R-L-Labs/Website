@@ -1,0 +1,168 @@
+{
+  "version": 1,
+  "routes": {
+    "/": {
+      "file": "index.html",
+      "title": "R&L Labs, LLC - Home",
+      "outline": [
+        { "tag": "h1", "text": "R&L Labs, LLC" },
+        { "tag": "h1", "text": "Welcome to R&L Labs" },
+        { "tag": "h2", "text": "About Us" },
+        { "tag": "h2", "text": "What We Do" },
+        { "tag": "h3", "text": "Web Development" },
+        { "tag": "h3", "text": "Mobile Development" },
+        { "tag": "h3", "text": "Custom Tools" }
+      ],
+      "requiredElements": [
+        { "tag": "a", "text": "View Our Projects", "attributes": { "href": "/projects" } }
+      ]
+    },
+    "/projects": {
+      "file": "projects/index.html",
+      "title": "R&L Labs, LLC - Projects",
+      "outline": [
+        { "tag": "h1", "text": "R&L Labs, LLC" },
+        { "tag": "h1", "text": "Our Projects" },
+        { "tag": "h3", "text": "AFTERLIGHT" },
+        { "tag": "h3", "text": "Crypto Sniping Bot" },
+        { "tag": "h3", "text": "Hedgelock" }
+      ],
+      "requiredElements": [
+        { "tag": "a", "classes": ["afterlight-project"], "attributes": { "href": "/afterlight" } },
+        {
+          "tag": "img",
+          "attributes": {
+            "src": "/afterlight/signal-reliquary.webp",
+            "alt": "The AFTERLIGHT Far Relay rising beyond a dark stone signal platform",
+            "width": "1600",
+            "height": "900"
+          }
+        }
+      ]
+    },
+    "/afterlight": {
+      "file": "afterlight/index.html",
+      "title": "AFTERLIGHT | R&L Labs",
+      "outline": [
+        { "tag": "h1", "text": "R&L Labs, LLC" },
+        { "tag": "h1", "text": "AFTERLIGHT" },
+        { "tag": "h2", "text": "Acquiring release inventory" },
+        { "tag": "h2", "text": "Choose your launcher bay" },
+        { "tag": "h3", "text": "Prism Launcher" },
+        { "tag": "h3", "text": "CurseForge" },
+        { "tag": "h3", "text": "Compatible launchers" },
+        { "tag": "h2", "text": "Stay on the signal" },
+        { "tag": "h2", "text": "Join the Far Relay" }
+      ],
+      "requiredElements": [
+        { "tag": "div", "classes": ["signal-system", "signal-acquiring"] },
+        { "tag": "h1", "text": "AFTERLIGHT", "attributes": { "id": "afterlight-title" } },
+        { "tag": "h2", "text": "Acquiring release inventory", "attributes": { "id": "release-state-title" } },
+        { "tag": "dd", "text": "v0.9.0-rc.2" },
+        { "tag": "dd", "text": "Aug 10, 2026" },
+        { "tag": "dd", "text": "Prerelease" },
+        {
+          "tag": "a",
+          "text": "SHA256SUMS",
+          "attributes": {
+            "href": "https://github.com/Luskish/afterlight-pack/releases/download/v0.9.0-rc.2/SHA256SUMS"
+          }
+        },
+        {
+          "tag": "a",
+          "text": "Release notes",
+          "attributes": {
+            "href": "https://github.com/Luskish/afterlight-pack/releases/tag/v0.9.0-rc.2",
+            "target": "_blank"
+          },
+          "attributeTokens": { "rel": ["noreferrer", "noopener"] }
+        },
+        {
+          "tag": "input",
+          "attributes": {
+            "id": "server-address",
+            "type": "text",
+            "value": "104.128.55.166",
+            "readonly": ""
+          }
+        },
+        {
+          "tag": "button",
+          "text": "Copy address",
+          "attributes": {
+            "type": "button",
+            "aria-describedby": "server-copy-status"
+          }
+        },
+        {
+          "tag": "a",
+          "text": "Download Prism ZIP ↓",
+          "classes": ["download-action"],
+          "attributes": {
+            "href": "https://github.com/Luskish/afterlight-pack/releases/download/v0.9.0-rc.2/AFTERLIGHT-prism-instance.zip",
+            "aria-label": "Download Prism ZIP for v0.9.0-rc.2"
+          }
+        },
+        { "tag": "div", "text": "Not included in pinned release", "classes": ["unavailable-action"], "count": 2 },
+        { "tag": "code", "text": "104.128.55.166" }
+      ],
+      "requiredIslands": [
+        { "component": "AfterlightDownloads", "export": "default", "hydration": "load" }
+      ]
+    },
+    "/contact": {
+      "file": "contact/index.html",
+      "title": "R&L Labs, LLC - Contact",
+      "outline": [
+        { "tag": "h1", "text": "R&L Labs, LLC" },
+        { "tag": "h1", "text": "Get In Touch" },
+        { "tag": "h2", "text": "Contact Information" },
+        { "tag": "h3", "text": "Email" },
+        { "tag": "h3", "text": "Business" },
+        { "tag": "h3", "text": "Location" },
+        { "tag": "h2", "text": "Send Us a Message" }
+      ],
+      "requiredElements": [
+        { "tag": "form", "classes": ["contact-form"] },
+        { "tag": "input", "attributes": { "id": "name", "type": "text", "required": "" } },
+        { "tag": "input", "attributes": { "id": "email", "type": "email", "required": "" } },
+        { "tag": "input", "attributes": { "id": "subject", "type": "text", "required": "" } },
+        { "tag": "textarea", "attributes": { "id": "message", "rows": "5", "required": "" } },
+        { "tag": "button", "text": "Send Message", "attributes": { "type": "submit" } }
+      ],
+      "requiredIslands": [
+        { "component": "ContactForm", "export": "default", "hydration": "load" }
+      ]
+    },
+    "/climb/privacy": {
+      "file": "climb/privacy/index.html",
+      "title": "Privacy Policy - Climb",
+      "outline": [
+        { "tag": "h1", "text": "R&L Labs, LLC" },
+        { "tag": "h1", "text": "Climb Privacy Policy" },
+        { "tag": "h2", "text": "What we collect" },
+        { "tag": "h2", "text": "What we don't do" },
+        { "tag": "h2", "text": "Who processes data for us" },
+        { "tag": "h2", "text": "Retention and deletion" },
+        { "tag": "h2", "text": "Age" },
+        { "tag": "h2", "text": "Contact" }
+      ],
+      "requiredElements": [
+        { "tag": "p", "text": "Last updated: July 28, 2026", "classes": ["legal-updated"] },
+        { "tag": "a", "text": "support@rl-labs.org", "attributes": { "href": "mailto:support@rl-labs.org" } }
+      ]
+    },
+    "/hedgelock/confirm-email": {
+      "file": "hedgelock/confirm-email/index.html",
+      "title": "Email Confirmed - Hedgelock",
+      "outline": [
+        { "tag": "h1", "text": "R&L Labs, LLC" },
+        { "tag": "h1", "text": "Email Confirmed!" }
+      ],
+      "requiredElements": [
+        { "tag": "p", "text": "Your email has been successfully verified for Hedgelock.", "classes": ["confirmation-message"] },
+        { "tag": "p", "text": "You can close this window and continue in the app.", "classes": ["confirmation-instruction"] }
+      ]
+    }
+  }
+}

@@ -1,0 +1,17 @@
+---
+import AfterlightDownloads from '../components/AfterlightDownloads.vue';
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="AFTERLIGHT | R&L Labs">
+  <div class="afterlight-page">
+    <AfterlightDownloads client:load />
+  </div>
+</Layout>
+
+<style>
+  .afterlight-page {
+    min-width: 0;
+    background: #070a0b;
+  }
+</style>
