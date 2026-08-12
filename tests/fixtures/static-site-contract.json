@@ -105,6 +105,9 @@
         },
         { "tag": "div", "text": "Not included in pinned release", "classes": ["unavailable-action"], "count": 2 },
         { "tag": "code", "text": "104.128.55.166" }
+      ],
+      "requiredIslands": [
+        { "component": "AfterlightDownloads", "export": "default", "hydration": "load" }
       ]
     },
     "/contact": {
@@ -126,6 +129,9 @@
         { "tag": "input", "attributes": { "id": "subject", "type": "text", "required": "" } },
         { "tag": "textarea", "attributes": { "id": "message", "rows": "5", "required": "" } },
         { "tag": "button", "text": "Send Message", "attributes": { "type": "submit" } }
+      ],
+      "requiredIslands": [
+        { "component": "ContactForm", "export": "default", "hydration": "load" }
       ]
     },
     "/climb/privacy": {

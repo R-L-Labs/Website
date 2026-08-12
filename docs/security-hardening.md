@@ -167,3 +167,136 @@ npm run audit
 - The complete future public AFTERLIGHT release still does not exist. The portal correctly remains on its pinned known-good fallback until all canonical release assets exist.
 - CI has not run on GitHub because no push was permitted. It must pass in GitHub before merge or deployment.
 - No push, merge, deployment, DNS change, or VPS action was performed.
+
+## Fix Round 1
+
+Review base: `7471d6ed6f9b2e632830a35a75e5859847490a2e`
+
+Date: August 11, 2026
+
+This round closes every Important and Minor verification bypass from the Task 4 security review. Production Astro pages, Vue components, styles, copy, branding, portal behavior, and EmailJS behavior are unchanged.
+
+### Static Islands and Behavior
+
+The static output contract now requires exactly one `AfterlightDownloads` island on `/afterlight` and exactly one `ContactForm` island on `/contact`. Each generated island must identify the expected component in Astro island options, emit the matching hashed component module, export `default`, and use `client:load`. Removing `client:load`, changing the component module identity, or omitting the island fails the generated-output gate.
+
+Behavioral regression coverage now mounts the real Vue script setup for:
+
+- AFTERLIGHT live inventory selection with three trusted launcher assets.
+- Pinned fallback selection after network failure.
+- Clipboard denial with visible field focus, selection, and manual copy guidance.
+- Delayed fetch cancellation and terminal-state suppression after unmount.
+- Contact rejection when required EmailJS configuration is absent.
+- Contact success with exact template parameters, success state, and field reset.
+
+### Workflow Semantics
+
+The parsed workflow checker now permits one file, `website-ci.yml`, with one job, `verify`, and one exact ordered sequence of eight required steps. It strictly allowlists workflow, job, step, and action input keys. It rejects:
+
+- Job or step conditions.
+- Job or step `continue-on-error`.
+- Job or step timeout overrides.
+- Environments, services, extra jobs, and extra workflows.
+- Missing, reordered, duplicated, renamed, shadowed, or extra gates.
+- Mutable action references, unapproved full SHAs, third-party actions, and unapproved `with` keys.
+- Checkout ref or token overrides and persisted credentials.
+- Setup Node caches or any input other than `.nvmrc`.
+
+Checkout therefore uses the workflow event commit selected by GitHub, with no `ref` override and `persist-credentials: false`.
+
+### Repository Blob Scanning
+
+Repository security checks now parse `git ls-files --stage -z`, enforce index modes, apply path policy before blob reads, and read raw staged objects with `git cat-file blob`. The scanner no longer follows worktree paths.
+
+Tracked symlinks are rejected even when their target is missing. Tracked generated paths and populated environment paths are rejected even when deleted from the worktree. U+2014 and ASCII credential signatures are scanned in raw bytes, including data after NUL bytes.
+
+High-confidence credential families now include GitHub, AWS `AKIA` and `ASIA`, Google API, npm, GitLab, SendGrid, OpenAI project, Slack, Stripe live secret, Stripe live restricted, and private key signatures. Diagnostics contain only path, line, and family, never the matched value. Near-miss and placeholder fixtures remain accepted.
+
+### Audit Process Contract
+
+The audit gate now runs a real subprocess and requires all of these conditions for success:
+
+- No spawn error.
+- No terminating signal.
+- Exit status exactly zero.
+- Empty stderr.
+- Nonempty, valid JSON stdout.
+- npm audit report version 2 with valid vulnerability objects and exact nonnegative severity counts.
+- Severity total equal to the sum of all severity buckets.
+- No audit error object.
+- Zero advisory records and zero advisory counts.
+
+Executable fixtures cover spawn, signal, nonzero exit, stderr, malformed JSON, malformed schema, inconsistent totals, audit error, advisory, and clean paths without exposing operational stderr.
+
+### Generated Link Containment
+
+Internal references are decoded with explicit error handling before resolution. Encoded or literal parent segments are rejected before URL normalization can hide them. Every candidate must remain lexically beneath `dist`, and its real path must remain beneath the real `dist` root. A valid target must be a regular file, an extension-resolved HTML file, or an `index.html` file inside the target directory. Encoded traversal, malformed encoding, symlink escape, empty directory, broken link, and valid regular-file fixtures cover the boundary.
+
+### Round 1 TDD Evidence
+
+Observed RED evidence before checker edits:
+
+- Island contract: `node --test tests/static-site-contract.test.mjs` reported 4 pass and 2 fail because missing hydration and changed component identity returned status 0.
+- Generated links: the expanded static contract run reported 5 pass and 6 fail, including encoded traversal, symlink escape, and bare-directory false accepts.
+- Workflow semantics: `node --test tests/workflow-security.test.mjs` reported 13 pass and 21 fail. Conditions, failure suppression, timeout overrides, services, and checkout overrides were accepted by the old checker.
+- Repository scanning: `node --test tests/repository-security.test.mjs` reported 5 pass and 8 fail for missing index, symlink, NUL-byte, and temporary AWS key enforcement.
+- Audit process: `node --test tests/audit-gate.test.mjs` reported 1 pass and 9 fail because the old gate ignored fixture process outcomes.
+
+Focused GREEN evidence after minimal implementations:
+
+- Static contract: 11 pass.
+- Workflow security: 36 pass, including parsed semantic bypass fixtures.
+- Repository security: 13 pass.
+- Audit gate: 10 pass.
+- Real portal and contact component regressions: 6 pass.
+- Complete Node suite: 97 pass, 0 fail.
+
+### Round 1 Browser Evidence
+
+Production `astro preview` served `dist` on `127.0.0.1:4321`.
+
+Desktop at 1440 by 1000:
+
+- `/`, `/projects`, `/afterlight`, `/contact`, `/climb/privacy`, and `/hedgelock/confirm-email` rendered expected titles and primary markers without horizontal overflow.
+- The live fixture produced `Live release verified`, three launcher downloads, and a hydrated `AfterlightDownloads` island with `client:load`.
+- Contact exposed four required fields and a hydrated `ContactForm` island with `client:load`.
+- Empty contact submission remained invalid with all four required controls reported invalid.
+- Valid fields reached the existing handler and produced `EmailJS is not configured. Please set variables.` with the existing error class.
+- Browser page-error collection was empty.
+
+Mobile on emulated iPhone 12 at 390 by 844:
+
+- All six routes rendered expected titles and markers without horizontal overflow.
+- Forced release-service failure produced `Pinned release active`, one Prism download, two unavailable launcher bays, and the exact network fallback notice.
+- The mobile trace displayed while the desktop trace was hidden.
+- Reduced motion matched, trace animation was `none`, and transition duration was `0s`.
+- Clipboard denial changed the control to `Address selected`, focused `server-address`, selected characters 0 through 14, and announced manual copy guidance.
+- Contact retained four required fields and exact `ContactForm` hydration.
+- Browser page-error collection was empty.
+
+The delayed-fetch fixture recorded `started: true`, `islandRemoved: true`, `aborted: true`, and `reason: cancelled` after the real Astro unmount lifecycle event.
+
+All browser sessions were closed. Astro reported no preview server, and port 4321 was not listening after cleanup.
+
+### Round 1 GitHub Actions Review
+
+Exploit-focused outcome: no exploitable vulnerabilities identified. The only workflow remains a `pull_request` and `push` to `main` verification job with `contents: read`. It has no `pull_request_target`, issue or comment trigger, secrets, OIDC, write permission, deployment environment, service container, self-hosted runner, cache, artifact transfer, expression interpolation in `run`, or persisted checkout credential. Both official actions use their exact approved 40-character commits.
+
+An external fork contributor can execute repository code in an ephemeral GitHub-hosted runner, but receives no secret and no credential with write or deploy authority. No complete path exists from attacker-controlled pull request content to repository modification, secret theft, deployment, or persistent runner access.
+
+### Round 1 Dependency and Output Result
+
+Direct versions remain exactly:
+
+- `astro@7.2.1`
+- `@astrojs/vue@7.0.2`
+- `vue@3.5.41`
+- `sass@1.102.0`
+- `@emailjs/browser@4.4.1`
+- `parse5@8.0.1`
+- `smol-toml@1.8.0`
+- `yaml@2.9.0`
+
+The production build remains fully static with six routes and 58 generated references. npm audit remains 0 total, 0 low, 0 moderate, 0 high, and 0 critical. The Netlify adapter remains absent, and the previously removed temporary Claude artifacts remain absent.
+
+Remaining concerns are unchanged: the future complete AFTERLIGHT public release does not yet exist, and GitHub-hosted CI has not run because this task forbids pushing. No push, merge, deployment, DNS change, or VPS action occurred.

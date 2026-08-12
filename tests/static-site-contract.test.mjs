@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, symlink, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -9,7 +9,10 @@ async function createFixture() {
   const root = await mkdtemp(join(tmpdir(), 'afterlight-static-contract-'));
   const output = join(root, 'dist');
   await mkdir(output);
-  await writeFile(join(output, 'index.html'), '<!doctype html><html><head><title>Fixture</title></head><body><h1>Signal ready</h1></body></html>');
+  await writeFile(
+    join(output, 'index.html'),
+    '<!doctype html><html><head><title>Fixture</title></head><body><h1>Signal ready</h1><astro-island component-url="/_astro/FixtureIsland.Abc123.js" component-export="default" renderer-url="/_astro/client.Def456.js" client="load" opts=\'{"name":"FixtureIsland","value":true}\'></astro-island></body></html>',
+  );
   await writeFile(join(root, 'contract.json'), JSON.stringify({
     version: 1,
     routes: {
@@ -18,6 +21,7 @@ async function createFixture() {
         title: 'Fixture',
         outline: [{ tag: 'h1', text: 'Signal ready' }],
         requiredElements: [{ tag: 'h1', text: 'Signal ready' }],
+        requiredIslands: [{ component: 'FixtureIsland', hydration: 'load' }],
       },
     },
   }));
@@ -72,4 +76,87 @@ test('rejects a contracted route missing from generated output', async () => {
 
   assert.equal(result.status, 1);
   assert.match(result.stderr, /STATIC CONTRACT: \/: missing index\.html/);
+});
+
+test('rejects a required Astro island without client load hydration', async () => {
+  const root = await createFixture();
+  const output = join(root, 'dist', 'index.html');
+  const source = await readFile(output, 'utf8');
+  await writeFile(output, source.replace(' client="load"', ''));
+  const result = runContract(root);
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /FixtureIsland.*client:load/);
+});
+
+test('rejects an Astro island whose component URL does not match its required identity', async () => {
+  const root = await createFixture();
+  const output = join(root, 'dist', 'index.html');
+  const source = await readFile(output, 'utf8');
+  await writeFile(output, source.replace('/_astro/FixtureIsland.Abc123.js', '/_astro/OtherIsland.Abc123.js'));
+  const result = runContract(root);
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /FixtureIsland.*component identity/);
+});
+
+test('rejects encoded parent traversal even when it reaches an existing file', async () => {
+  const root = await createFixture();
+  const output = join(root, 'dist', 'index.html');
+  const source = await readFile(output, 'utf8');
+  await writeFile(join(root, 'outside.html'), '<!doctype html><title>Outside</title>');
+  await writeFile(output, source.replace('</body>', '<a href="/..%2foutside.html">Outside</a></body>'));
+  const result = runContract(root);
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /parent traversal.*\/\.\.%2foutside\.html/i);
+});
+
+test('rejects malformed internal URL encoding with a specific diagnostic', async () => {
+  const root = await createFixture();
+  const output = join(root, 'dist', 'index.html');
+  const source = await readFile(output, 'utf8');
+  await writeFile(output, source.replace('</body>', '<a href="/%E0%A4%A">Malformed</a></body>'));
+  const result = runContract(root);
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /malformed internal URL encoding/);
+});
+
+test('rejects an internal output symlink that escapes dist', async () => {
+  const root = await createFixture();
+  const output = join(root, 'dist', 'index.html');
+  const outside = join(root, 'outside');
+  await mkdir(outside);
+  await writeFile(join(outside, 'secret.txt'), 'outside dist\n');
+  await symlink(outside, join(root, 'dist', 'escape'));
+  const source = await readFile(output, 'utf8');
+  await writeFile(output, source.replace('</body>', '<a href="/escape/secret.txt">Escape</a></body>'));
+  const result = runContract(root);
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /output escapes dist.*\/escape\/secret\.txt/);
+});
+
+test('rejects a linked directory that does not contain index html', async () => {
+  const root = await createFixture();
+  const output = join(root, 'dist', 'index.html');
+  await mkdir(join(root, 'dist', 'empty'));
+  const source = await readFile(output, 'utf8');
+  await writeFile(output, source.replace('</body>', '<a href="/empty">Empty</a></body>'));
+  const result = runContract(root);
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /broken internal link \/empty from \//);
+});
+
+test('accepts an internal link to a regular generated file', async () => {
+  const root = await createFixture();
+  const output = join(root, 'dist', 'index.html');
+  await writeFile(join(root, 'dist', 'asset.txt'), 'generated asset\n');
+  const source = await readFile(output, 'utf8');
+  await writeFile(output, source.replace('</body>', '<a href="/asset.txt">Asset</a></body>'));
+  const result = runContract(root);
+
+  assert.equal(result.status, 0, result.stderr);
 });

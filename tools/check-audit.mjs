@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-import { readFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 
@@ -9,43 +8,69 @@ function option(name) {
   return index === -1 ? undefined : process.argv[index + 1];
 }
 
-const input = option('--input');
-let output;
+function failOperational(message) {
+  console.error(`NPM AUDIT: ${message}`);
+  process.exit(2);
+}
 
-if (input) {
-  output = await readFile(resolve(input), 'utf8');
-} else {
-  const audit = spawnSync('npm', ['audit', '--json'], {
-    cwd: resolve(option('--root') ?? '.'),
-    encoding: 'utf8',
-    maxBuffer: 16 * 1024 * 1024,
-  });
-  output = audit.stdout;
+function isRecord(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
 
-  if (!output) {
-    console.error(audit.stderr || 'NPM AUDIT: npm returned no JSON output');
-    process.exit(2);
-  }
+const executable = option('--audit-executable') ?? 'npm';
+const audit = spawnSync(executable, ['audit', '--json'], {
+  cwd: resolve(option('--root') ?? '.'),
+  encoding: 'utf8',
+  maxBuffer: 16 * 1024 * 1024,
+});
+
+if (audit.error) {
+  failOperational('unable to start npm audit');
+}
+if (audit.signal) {
+  failOperational(`subprocess terminated by ${audit.signal}`);
+}
+if (audit.status !== 0) {
+  failOperational(`subprocess exited with status ${audit.status}`);
+}
+if (typeof audit.stderr !== 'string' || audit.stderr.trim() !== '') {
+  failOperational('subprocess wrote to stderr');
+}
+if (typeof audit.stdout !== 'string' || audit.stdout.trim() === '') {
+  failOperational('npm returned no JSON output');
 }
 
 let report;
 try {
-  report = JSON.parse(output);
+  report = JSON.parse(audit.stdout);
 } catch {
-  console.error('NPM AUDIT: output was not valid JSON');
-  process.exit(2);
+  failOperational('output was not valid JSON');
+}
+
+if (!isRecord(report)) {
+  failOperational('report schema was malformed');
+}
+if (Object.hasOwn(report, 'error')) {
+  failOperational('report contained an audit error');
 }
 
 const counts = report.metadata?.vulnerabilities;
 const severities = ['info', 'low', 'moderate', 'high', 'critical', 'total'];
-if (!counts || severities.some((severity) => !Number.isInteger(counts[severity]) || counts[severity] < 0)) {
-  console.error('NPM AUDIT: vulnerability metadata was missing or malformed');
-  process.exit(2);
+const advisorySeverities = severities.slice(0, -1);
+const schemaValid = report.auditReportVersion === 2
+  && isRecord(report.vulnerabilities)
+  && isRecord(report.metadata)
+  && isRecord(counts)
+  && severities.every((severity) => Number.isInteger(counts[severity]) && counts[severity] >= 0)
+  && counts.total === advisorySeverities.reduce((total, severity) => total + counts[severity], 0);
+
+if (!schemaValid) {
+  failOperational('report schema was malformed');
 }
 
 console.log(`NPM AUDIT: ${counts.total} total (${counts.low} low, ${counts.moderate} moderate, ${counts.high} high, ${counts.critical} critical)`);
 
-if (counts.total > 0) {
+if (counts.total > 0 || Object.keys(report.vulnerabilities).length > 0) {
   console.error('NPM AUDIT: advisories are not allowed');
   process.exit(1);
 }

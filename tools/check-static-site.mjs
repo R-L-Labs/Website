@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { access, readdir, readFile } from 'node:fs/promises';
-import { relative, resolve, sep } from 'node:path';
+import { readdir, readFile, realpath, stat } from 'node:fs/promises';
+import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { parse } from 'parse5';
 
 function option(name) {
@@ -53,32 +53,126 @@ function matchesElement(node, expected) {
     });
 }
 
+function islandOptions(node) {
+  const value = attributes(node).opts;
+  if (!value) return null;
+
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function componentModuleMatches(value, component) {
+  if (typeof value !== 'string') return false;
+  const prefix = `/_astro/${component}.`;
+  return value.startsWith(prefix)
+    && value.endsWith('.js')
+    && value.length > prefix.length + '.js'.length
+    && !value.slice(prefix.length).includes('/');
+}
+
+function validateRequiredIslands(document, route, requiredIslands) {
+  const failures = [];
+  const islands = elements(document, 'astro-island');
+
+  for (const expected of requiredIslands ?? []) {
+    const expectedCount = expected.count ?? 1;
+    const namedIslands = islands.filter((node) => islandOptions(node)?.name === expected.component);
+    const identityMatches = namedIslands.filter((node) => {
+      const actual = attributes(node);
+      return actual['component-export'] === (expected.export ?? 'default')
+        && componentModuleMatches(actual['component-url'], expected.component);
+    });
+
+    if (namedIslands.length > 0 && identityMatches.length !== namedIslands.length) {
+      failures.push(`${route}: ${expected.component} Astro island component identity changed`);
+    }
+
+    const hydrated = identityMatches.filter((node) => (
+      attributes(node).client === expected.hydration
+    ));
+    if (hydrated.length !== expectedCount) {
+      failures.push(`${route}: expected ${expectedCount} ${expected.component} Astro island with client:${expected.hydration}, found ${hydrated.length}`);
+    }
+  }
+
+  return failures;
+}
+
+function pathWithin(root, candidate) {
+  const pathFromRoot = relative(root, candidate);
+  return pathFromRoot === ''
+    || (!isAbsolute(pathFromRoot) && pathFromRoot !== '..' && !pathFromRoot.startsWith(`..${sep}`));
+}
+
+function rawReferencePath(reference) {
+  const withoutFragment = reference.split('#', 1)[0];
+  const withoutQuery = withoutFragment.split('?', 1)[0];
+  const authority = /^(?:[A-Za-z][A-Za-z0-9+.-]*:)?\/\//.exec(withoutQuery);
+  if (!authority) return withoutQuery;
+
+  const pathStart = withoutQuery.indexOf('/', authority[0].length);
+  return pathStart === -1 ? '/' : withoutQuery.slice(pathStart);
+}
+
+function decodedReferencePath(reference) {
+  try {
+    return { path: decodeURIComponent(rawReferencePath(reference)) };
+  } catch {
+    return { error: 'malformed' };
+  }
+}
+
+function containsParentTraversal(pathname) {
+  return pathname.replaceAll('\\', '/').split('/').includes('..');
+}
+
 async function outputExists(distDirectory, pathname) {
   let decodedPath;
   try {
     decodedPath = decodeURIComponent(pathname);
   } catch {
-    return false;
+    return { exists: false, malformed: true };
   }
 
+  if (containsParentTraversal(decodedPath)) {
+    return { exists: false, traversal: true };
+  }
+
+  const distRoot = resolve(distDirectory);
+  const distRealPath = await realpath(distRoot);
   const relativePath = decodedPath.replace(/^\/+/, '');
   const candidates = decodedPath.endsWith('/')
-    ? [resolve(distDirectory, relativePath, 'index.html')]
+    ? [resolve(distRoot, relativePath, 'index.html')]
     : [
-      resolve(distDirectory, relativePath),
-      resolve(distDirectory, `${relativePath}.html`),
-      resolve(distDirectory, relativePath, 'index.html'),
+      resolve(distRoot, relativePath),
+      resolve(distRoot, `${relativePath}.html`),
+      resolve(distRoot, relativePath, 'index.html'),
     ];
 
   for (const candidate of candidates) {
+    if (!pathWithin(distRoot, candidate)) {
+      return { exists: false, escaped: true };
+    }
+
     try {
-      await access(candidate);
-      return true;
-    } catch {
+      const resolvedCandidate = await realpath(candidate);
+      if (!pathWithin(distRealPath, resolvedCandidate)) {
+        return { exists: false, escaped: true };
+      }
+
+      if ((await stat(resolvedCandidate)).isFile()) {
+        return { exists: true };
+      }
+    } catch (error) {
+      if (error?.code !== 'ENOENT' && error?.code !== 'ENOTDIR') throw error;
     }
   }
 
-  return false;
+  return { exists: false };
 }
 
 async function validateInternalLinks(document, distDirectory, route) {
@@ -105,7 +199,25 @@ async function validateInternalLinks(document, distDirectory, route) {
     }
 
     if (url.origin !== 'https://static.invalid') continue;
-    if (!await outputExists(distDirectory, url.pathname)) {
+
+    const decodedReference = decodedReferencePath(reference);
+    if (decodedReference.error === 'malformed') {
+      failures.push(`${route}: malformed internal URL encoding in ${reference}`);
+      continue;
+    }
+    if (containsParentTraversal(decodedReference.path)) {
+      failures.push(`${route}: parent traversal is forbidden in ${reference}`);
+      continue;
+    }
+
+    const output = await outputExists(distDirectory, url.pathname);
+    if (output.malformed) {
+      failures.push(`${route}: malformed internal URL encoding in ${reference}`);
+    } else if (output.traversal) {
+      failures.push(`${route}: parent traversal is forbidden in ${reference}`);
+    } else if (output.escaped) {
+      failures.push(`${route}: generated output escapes dist for ${url.pathname}`);
+    } else if (!output.exists) {
       failures.push(`broken internal link ${url.pathname} from ${route}`);
     }
   }
@@ -145,6 +257,8 @@ async function validateRoute(distDirectory, route, expected) {
       failures.push(`${route}: expected ${required.count ?? 1} matching <${required.tag}> element, found ${count}`);
     }
   }
+
+  failures.push(...validateRequiredIslands(document, route, expected.requiredIslands));
 
   const links = await validateInternalLinks(document, distDirectory, route);
   failures.push(...links.failures);
